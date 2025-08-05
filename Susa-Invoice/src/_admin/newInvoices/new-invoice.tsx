@@ -81,7 +81,7 @@ items: [
   // Fetch next invoice number
   const fetchNextInvoiceNumber = async () => {
     try {
-      const response = await axios.get("http://localhost:5000/api/invoice/nextInvoiceNumber")
+      const response = await axios.get("https://newsusainvoice.onrender.com/api/invoice/nextInvoiceNumber")
       if (response.data && response.data.nextInvoiceNumber) {
         setInvoiceData((prev) => ({
           ...prev,
@@ -98,7 +98,7 @@ items: [
     if (!companyId) return
 
     try {
-      const response = await axios.get(`http://localhost:5000/api/companies/getById/${companyId}`)
+      const response = await axios.get(`https://newsusainvoice.onrender.com/api/companies/getById/${companyId}`)
       if (response.data) {
         const company = response.data
         setInvoiceData((prev) => ({

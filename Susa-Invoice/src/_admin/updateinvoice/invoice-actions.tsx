@@ -294,7 +294,7 @@ export default function InvoiceActions({
 
     try {
       // First, save the invoice
-      const response = await axios.put(`http://localhost:5000/api/invoice/updateById/${invoiceId}`, invoicePayload, {
+      const response = await axios.put(`https://newsusainvoice.onrender.com/api/invoice/updateById/${invoiceId}`, invoicePayload, {
         headers: {
           "Content-Type": "application/json",
         },

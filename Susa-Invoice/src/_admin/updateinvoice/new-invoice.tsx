@@ -83,7 +83,7 @@ items: [
     if (!_id) return
 
     try {
-      const response = await axios.get(`http://localhost:5000/api/invoice/getbyId/${_id}`)
+      const response = await axios.get(`https://newsusainvoice.onrender.com/api/invoice/getbyId/${_id}`)
       if (response.data) {
         const invoiceFromAPI = response.data
 

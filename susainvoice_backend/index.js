@@ -26,7 +26,7 @@ const limiter = rateLimit({
 app.use(limiter);
 
 // ✅ CORS Setup
-const allowedOrigins = ['https://invoice-65289.web.app','http://localhost:5173'];
+const allowedOrigins = ['https://invoice-65289.web.app','http://localhost:5173',"https://serene-faun-12834b.netlify.app"];
 app.use(
   cors({
     origin: allowedOrigins,

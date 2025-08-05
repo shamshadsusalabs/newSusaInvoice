@@ -44,7 +44,7 @@ export default function AllInvoice({ onNewInvoice, onViewInvoice }: AllInvoicePr
 
       try {
         setLoading(true)
-        const response = await axios.get<ApiResponse>(`http://localhost:5000/api/invoice/summary/${companyId}`)
+        const response = await axios.get<ApiResponse>(`https://newsusainvoice.onrender.com/api/invoice/summary/${companyId}`)
 
         if (response.data.success) {
           // Handle both cases: data exists or empty array
