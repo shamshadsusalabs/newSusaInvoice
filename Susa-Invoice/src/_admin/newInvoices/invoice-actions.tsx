@@ -300,7 +300,7 @@ export default function InvoiceActions({
         createdAt: new Date().toISOString(),
       }
 
-      const response = await axios.post("https://newsusainvoice.onrender.com/api/invoice/add", invoicePayload, {
+      const response = await axios.post("http://localhost:5000/api/invoice/add", invoicePayload, {
         headers: {
           "Content-Type": "application/json",
         },

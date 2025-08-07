@@ -32,7 +32,7 @@ const Company: React.FC = () => {
   const fetchCompanies = async () => {
     setLoading(true)
     try {
-      const res = await axios.get("https://newsusainvoice.onrender.com/api/companies/getAll")
+      const res = await axios.get("http://localhost:5000/api/companies/getAll")
       setCompanies(res.data)
       setFilteredCompanies(res.data)
     } catch (err) {
@@ -46,7 +46,7 @@ const Company: React.FC = () => {
     e.preventDefault()
     setLoading(true)
     try {
-      await axios.post("https://newsusainvoice.onrender.com/api/companies/add", newCompany)
+      await axios.post("http://localhost:5000/api/companies/add", newCompany)
       setShowModal(false)
       setNewCompany({ name: "", address: "", gstNumber: "" })
       fetchCompanies()
@@ -61,7 +61,7 @@ const Company: React.FC = () => {
     if (window.confirm("Are you sure you want to delete this company?")) {
       setLoading(true)
       try {
-        await axios.delete(`https://newsusainvoice.onrender.com/api/companies/deleteById/${id}`)
+        await axios.delete(`http://localhost:5000/api/companies/deleteById/${id}`)
         fetchCompanies()
       } catch (err) {
         console.error("Error deleting company", err)
@@ -76,7 +76,7 @@ const Company: React.FC = () => {
     setLoading(true)
     try {
       if (editingCompany) {
-        await axios.put(`https://newsusainvoice.onrender.com/api/companies/updateById/${editingCompany._id}`, editingCompany)
+        await axios.put(`http://localhost:5000/api/companies/updateById/${editingCompany._id}`, editingCompany)
         setEditingCompany(null)
         fetchCompanies()
       }
@@ -209,13 +209,13 @@ const Company: React.FC = () => {
                             >
                               <Trash2 className="h-4 w-4" />
                             </button>
-                            {/* View All Invoices Button */}
+                           
                             <Link
-                              to={`/admin/allinvoice/${company._id}`}
-                              className="p-2 bg-green-50 hover:bg-green-100 text-green-600 rounded-lg transition-colors duration-200 hover:scale-110 flex items-center"
+                              to={`/admin/rental-invoices/${company._id}`}
+                              className="p-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg transition-colors duration-200 hover:scale-110 flex items-center"
                             >
                               <Eye className="h-4 w-4 mr-1" />
-                              <span className="text-sm">View Invoices</span>
+                              <span className="text-sm">Rental Invoices</span>
                             </Link>
                           </div>
                         </td>

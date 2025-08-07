@@ -1,30 +1,184 @@
-
-import { FaFileInvoice, FaReceipt, FaChartLine, FaDownload } from 'react-icons/fa';
+import { useState, useEffect } from 'react';
+import { FaFileInvoice, FaReceipt, FaChartLine, FaDownload, FaClock, FaCheckCircle } from 'react-icons/fa';
 import { FiTrendingUp, FiTrendingDown } from 'react-icons/fi';
+import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
+
+interface RentalInvoice {
+  _id: string;
+  invoiceNumber: string;
+  invoiceType: 'ADVANCE' | 'PARTIAL' | 'FULL';
+  totalAmount: number;
+  Date: string;
+  rentalDetails?: {
+    status: string;
+  };
+  billTo: {
+    name: string;
+  };
+}
+
+interface DashboardStats {
+  totalInvoices: number;
+  advanceInvoices: number;
+  partialInvoices: number;
+  fullInvoices: number;
+  activeRentals: number;
+  completedRentals: number;
+  totalRevenue: number;
+  recentInvoices: RentalInvoice[];
+}
 
 const Dashboard = () => {
-  const data = [
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [stats, setStats] = useState<DashboardStats>({
+    totalInvoices: 0,
+    advanceInvoices: 0,
+    partialInvoices: 0,
+    fullInvoices: 0,
+    activeRentals: 0,
+    completedRentals: 0,
+    totalRevenue: 0,
+    recentInvoices: [],
+  });
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const companyId = localStorage.getItem('companyId') || '6892e96b511b625e5c704819'; // Default company ID
+      
+      const response = await axios.get(`http://localhost:5000/api/invoice/rental/company/${companyId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (response.data.success) {
+        const invoices: RentalInvoice[] = response.data.data || [];
+        
+        // Calculate statistics
+        const totalInvoices = invoices.length;
+        const advanceInvoices = invoices.filter(inv => inv.invoiceType === 'ADVANCE').length;
+        const partialInvoices = invoices.filter(inv => inv.invoiceType === 'PARTIAL').length;
+        const fullInvoices = invoices.filter(inv => inv.invoiceType === 'FULL').length;
+        const activeRentals = invoices.filter(inv => inv.rentalDetails?.status === 'ACTIVE').length;
+        const completedRentals = invoices.filter(inv => inv.rentalDetails?.status === 'COMPLETED').length;
+        const totalRevenue = invoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
+        const recentInvoices = invoices.slice(0, 5); // Get 5 most recent
+
+        setStats({
+          totalInvoices,
+          advanceInvoices,
+          partialInvoices,
+          fullInvoices,
+          activeRentals,
+          completedRentals,
+          totalRevenue,
+          recentInvoices,
+        });
+        setError(null);
+      } else {
+        setError('Failed to fetch dashboard data');
+      }
+    } catch (err: any) {
+      console.error('Error fetching dashboard data:', err);
+      setError('Error loading dashboard data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-IN', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex justify-center items-center h-64">
+            <div className="text-lg text-slate-600">Loading dashboard data...</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex justify-center items-center h-64">
+            <div className="text-lg text-red-600">{error}</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const cardData = [
     {
-      title: 'Sales Invoices',
-      count: 3,
+      title: 'Total Rental Invoices',
+      count: stats.totalInvoices,
       trend: 'up',
       trendValue: '12%',
-      taxType: 'GST',
-      taxPercentage: 18,
-      icon: <FaFileInvoice className="text-emerald-500 text-xl" />,
-      bgColor: 'bg-emerald-50',
-      action: 'View All',
+      subtitle: 'All rental invoices',
+      icon: <FaFileInvoice className="text-blue-500 text-xl" />,
+      bgColor: 'bg-blue-50',
+      // action: 'View All',
+      // onClick: () => navigate('/all-rental-invoices'),
     },
     {
-      title: 'Purchase Invoices',
-      count: 0,
-      trend: 'down',
+      title: 'Advance Invoices',
+      count: stats.advanceInvoices,
+      trend: 'up',
+      trendValue: '8%',
+      subtitle: 'Initial advance payments',
+      icon: <FaReceipt className="text-emerald-500 text-xl" />,
+      bgColor: 'bg-emerald-50',
+      // action: 'Create New',
+      // onClick: () => navigate('/advance-invoice'),
+    },
+    {
+      title: 'Partial Returns',
+      count: stats.partialInvoices,
+      trend: 'up',
       trendValue: '5%',
-      taxType: 'GST',
-      taxPercentage: 18,
-      icon: <FaReceipt className="text-amber-500 text-xl" />,
+      subtitle: 'Partial return invoices',
+      icon: <FaClock className="text-amber-500 text-xl" />,
       bgColor: 'bg-amber-50',
-      action: 'Create New',
+      // action: 'View All',
+      // onClick: () => navigate('/all-rental-invoices'),
+    },
+    {
+      title: 'Full Settlements',
+      count: stats.fullInvoices,
+      trend: 'up',
+      trendValue: '15%',
+      subtitle: 'Completed settlements',
+      icon: <FaCheckCircle className="text-green-500 text-xl" />,
+      bgColor: 'bg-green-50',
+      // action: 'View All',
+      // onClick: () => navigate('/all-rental-invoices'),
     },
   ];
 
@@ -40,15 +194,16 @@ const Dashboard = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {data.map((item, index) => (
+          {cardData.map((item) => (
             <div
-              key={index}
-              className={`${item.bgColor} p-6 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 border border-transparent hover:border-slate-200`}
+              // key={index}
+              // className={`${item.bgColor} p-6 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 border border-transparent hover:border-slate-200 cursor-pointer`}
+              // onClick={item.onClick}
             >
               <div className="flex justify-between items-start mb-4">
                 <div>
                   <h2 className="text-xl font-semibold text-slate-800">{item.title}</h2>
-                  <p className="text-sm text-slate-500">Total invoices processed</p>
+                  <p className="text-sm text-slate-500">{item.subtitle}</p>
                 </div>
                 <div className={`p-3 rounded-lg ${item.bgColor.replace('50', '100')}`}>
                   {item.icon}
@@ -64,22 +219,62 @@ const Dashboard = () => {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm text-slate-600">Tax Type</p>
-                  <p className="font-medium text-slate-800">{item.taxType}</p>
+                  <p className="text-sm text-slate-600">Revenue</p>
+                  <p className="font-medium text-slate-800">{formatCurrency(stats.totalRevenue)}</p>
                 </div>
               </div>
 
               <div className="flex justify-between items-center pt-4 border-t border-slate-200">
                 <div>
-                  <p className="text-sm text-slate-600">Tax Percentage</p>
-                  <p className="font-medium text-slate-800">{item.taxPercentage}%</p>
+                  <p className="text-sm text-slate-600">Status</p>
+                  <p className="font-medium text-slate-800">Active</p>
                 </div>
-                <button className="flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg bg-white shadow-xs hover:bg-slate-50 transition-colors duration-200 border border-slate-200">
+                {/* <button className="flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg bg-white shadow-xs hover:bg-slate-50 transition-colors duration-200 border border-slate-200">
                   {item.action}
-                </button>
+                </button> */}
               </div>
             </div>
           ))}
+        </div>
+
+        {/* Recent Invoices Section */}
+        <div className="mt-8 bg-white p-6 rounded-xl shadow-sm">
+          <h2 className="text-xl font-semibold text-slate-800 mb-6">Recent Invoices</h2>
+          {stats.recentInvoices.length > 0 ? (
+            <div className="space-y-4">
+              {stats.recentInvoices.map((invoice) => (
+                <div 
+                  key={invoice._id} 
+                  className="flex items-center justify-between p-4 border border-slate-100 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors"
+                  onClick={() => navigate(`/rental-details/${invoice._id}`)}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className={`p-2 rounded-full ${
+                      invoice.invoiceType === 'ADVANCE' ? 'bg-blue-50' :
+                      invoice.invoiceType === 'PARTIAL' ? 'bg-amber-50' :
+                      'bg-green-50'
+                    }`}>
+                      {invoice.invoiceType === 'ADVANCE' ? <FaFileInvoice className="text-blue-500" /> :
+                       invoice.invoiceType === 'PARTIAL' ? <FaClock className="text-amber-500" /> :
+                       <FaCheckCircle className="text-green-500" />}
+                    </div>
+                    <div>
+                      <p className="font-medium text-slate-800">{invoice.invoiceNumber}</p>
+                      <p className="text-sm text-slate-500">{invoice.billTo.name}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-medium text-slate-800">{formatCurrency(invoice.totalAmount)}</p>
+                    <p className="text-sm text-slate-500">{formatDate(invoice.Date)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-slate-500">
+              No recent invoices found
+            </div>
+          )}
         </div>
 
         {/* Additional Stats Section */}
@@ -91,27 +286,27 @@ const Dashboard = () => {
                 <div className="p-2 bg-indigo-50 rounded-full">
                   <FaChartLine className="text-indigo-500" />
                 </div>
-                <span className="text-sm font-medium text-slate-600">Monthly Growth</span>
+                <span className="text-sm font-medium text-slate-600">Total Revenue</span>
               </div>
-              <p className="text-2xl font-bold text-slate-800">24%</p>
+              <p className="text-2xl font-bold text-slate-800">{formatCurrency(stats.totalRevenue)}</p>
             </div>
             <div className="p-4 border border-slate-100 rounded-lg">
               <div className="flex items-center gap-3 mb-3">
                 <div className="p-2 bg-emerald-50 rounded-full">
                   <FiTrendingUp className="text-emerald-500" />
                 </div>
-                <span className="text-sm font-medium text-slate-600">Active Clients</span>
+                <span className="text-sm font-medium text-slate-600">Active Rentals</span>
               </div>
-              <p className="text-2xl font-bold text-slate-800">42</p>
+              <p className="text-2xl font-bold text-slate-800">{stats.activeRentals}</p>
             </div>
             <div className="p-4 border border-slate-100 rounded-lg">
               <div className="flex items-center gap-3 mb-3">
                 <div className="p-2 bg-rose-50 rounded-full">
                   <FiTrendingDown className="text-rose-500" />
                 </div>
-                <span className="text-sm font-medium text-slate-600">Pending Invoices</span>
+                <span className="text-sm font-medium text-slate-600">Completed Rentals</span>
               </div>
-              <p className="text-2xl font-bold text-slate-800">7</p>
+              <p className="text-2xl font-bold text-slate-800">{stats.completedRentals}</p>
             </div>
           </div>
         </div>

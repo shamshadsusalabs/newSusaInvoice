@@ -6,11 +6,18 @@ const Login = lazy(() => import("./_admin/login"))
 const AdminLayout = lazy(() => import("./_admin/AdminLayout"))
 const Dashboard = lazy(() => import("./_admin/Dashboard"))
 const Company = lazy(() => import("./_admin/Company"))
-const NewInvoice = lazy(() => import("./_admin/newInvoices/new-invoice"))
-const AllInvoice = lazy(() => import("./_admin/newInvoices/allinvoice"))
-const NewInvoiceUpdate = lazy(() => import("./_admin/updateinvoice/new-invoice"))
+// const NewInvoice = lazy(() => import("./_admin/newInvoices/new-invoice"))
+// const AllInvoice = lazy(() => import("./_admin/newInvoices/allinvoice"))
+// const NewInvoiceUpdate = lazy(() => import("./_admin/updateinvoice/new-invoice"))
 const Files = lazy(() => import("./_admin/Files"))
 const ProtectedRoute = lazy(() => import("./_admin/ProtectedRoute"))
+
+// Rental Invoice System Components
+const AllRentalInvoices = lazy(() => import("./_admin/rentalInvoices/all-rental-invoices"))
+const AdvanceInvoice = lazy(() => import("./_admin/rentalInvoices/advance-invoice"))
+const PartialReturn = lazy(() => import("./_admin/rentalInvoices/partial-return"))
+const FullSettlement = lazy(() => import("./_admin/rentalInvoices/full-settlement"))
+const RentalDetails = lazy(() => import("./_admin/rentalInvoices/rental-details"))
 
 function App() {
   return (
@@ -29,10 +36,17 @@ function App() {
               <Route index element={<Navigate to="dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="company" element={<Company />} />
-            <Route path="new-invoice/:companyId" element={<NewInvoice />} />
+            {/* <Route path="new-invoice/:companyId" element={<NewInvoice />} />
             <Route path="allinvoice/:companyId" element={<AllInvoice />} />
-            <Route path="update/:_id" element={<NewInvoiceUpdate />} />
+            <Route path="update/:_id" element={<NewInvoiceUpdate />} /> */}
             <Route path="files" element={<Files />} />
+            
+            {/* Rental Invoice System Routes */}
+            <Route path="rental-invoices/:companyId" element={<AllRentalInvoices />} />
+            <Route path="rental/advance/:companyId" element={<AdvanceInvoice />} />
+            <Route path="rental/partial/:invoiceId" element={<PartialReturn />} />
+            <Route path="rental/full/:invoiceId" element={<FullSettlement />} />
+            <Route path="rental/details/:invoiceId" element={<RentalDetails />} />
           </Route>
         </Routes>
       </Suspense>

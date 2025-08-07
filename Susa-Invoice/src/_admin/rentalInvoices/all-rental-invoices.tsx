@@ -2,40 +2,61 @@
 import { useState, useEffect } from "react"
 import axios from "axios"
 import { useParams, useNavigate } from "react-router-dom"
-import { Search, Plus, Eye, ChevronLeft, ChevronRight } from "lucide-react"
+import { Search, Plus, Eye, ChevronLeft, ChevronRight, CreditCard, CheckCircle } from "lucide-react"
 
-interface Invoice {
+interface RentalInvoice {
   _id: string
-  invoiceNumber: number
-  type: string
+  invoiceNumber: string // Now string format like INV-2500
+  invoiceType: 'ADVANCE' | 'PARTIAL' | 'FULL'
+  type?: 'TAX' | 'PROFORMA' // PDF type
+  totalAmount: number
   Date?: string
+  companyId: string
+  status?: 'ACTIVE' | 'PARTIAL_RETURNED' | 'COMPLETED'
+  // Legacy fields for backward compatibility
+  advanceAmount?: number
+  outstandingAmount?: number
+  // New schema fields
+  paymentDetails?: {
+    advanceAmount: number | string
+    totalRentAmount: number
+    paidAmount: number
+    outstandingAmount: number
+    refundAmount: number
+    finalAmount: number
+  }
+  billTo?: {
+    name: string
+    address: string
+    gstin: string
+  }
 }
 
 interface ApiResponse {
   success: boolean
-  data: Invoice[]
+  data: RentalInvoice[]
   message?: string
 }
 
-interface AllInvoiceProps {
+interface AllRentalInvoicesProps {
   onNewInvoice?: () => void
   onViewInvoice?: (invoiceId: string) => void
 }
 
-export default function AllInvoice({ onNewInvoice, onViewInvoice }: AllInvoiceProps) {
-  const { companyId } = useParams<{ companyId: string }>() // Get companyId from URL
-  const navigate = useNavigate() // Initialize useNavigate
-  const [invoices, setInvoices] = useState<Invoice[]>([])
-  const [filteredInvoices, setFilteredInvoices] = useState<Invoice[]>([])
+export default function AllRentalInvoices({ onNewInvoice, onViewInvoice }: AllRentalInvoicesProps) {
+  const { companyId } = useParams<{ companyId: string }>()
+  const navigate = useNavigate()
+  const [invoices, setInvoices] = useState<RentalInvoice[]>([])
+  const [filteredInvoices, setFilteredInvoices] = useState<RentalInvoice[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(10)
 
-  // Fetch invoices
+  // Fetch rental invoices
   useEffect(() => {
-    const fetchInvoices = async () => {
+    const fetchRentalInvoices = async () => {
       if (!companyId) {
         setError("No company ID provided")
         setLoading(false)
@@ -44,24 +65,25 @@ export default function AllInvoice({ onNewInvoice, onViewInvoice }: AllInvoicePr
 
       try {
         setLoading(true)
-        const response = await axios.get<ApiResponse>(`http://localhost:5000/api/invoice/summary/${companyId}`)
+        const response = await axios.get<ApiResponse>(`http://localhost:5000/api/invoice/rental/company/${companyId}`, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`
+          }
+        })
 
         if (response.data.success) {
-          // Handle both cases: data exists or empty array
           const invoiceData = response.data.data || []
           setInvoices(invoiceData)
           setFilteredInvoices(invoiceData)
-          setError(null) // Clear any previous errors
+          setError(null)
         } else {
-          setError("Failed to fetch invoices")
+          setError("Failed to fetch rental invoices")
         }
       } catch (err) {
-        console.error("Error fetching invoices:", err)
+        console.error("Error fetching rental invoices:", err)
         if (axios.isAxiosError(err)) {
           if (err.response) {
-            // Check if it's a 404 or "no invoices found" case
-            if (err.response.status === 404 || err.response.data?.message?.includes("No invoices found")) {
-              // Treat as empty result, not an error
+            if (err.response.status === 404 || err.response.data?.message?.includes("No rental invoices found")) {
               setInvoices([])
               setFilteredInvoices([])
               setError(null)
@@ -81,7 +103,7 @@ export default function AllInvoice({ onNewInvoice, onViewInvoice }: AllInvoicePr
       }
     }
 
-    fetchInvoices()
+    fetchRentalInvoices()
   }, [companyId])
 
   // Search functionality
@@ -89,11 +111,12 @@ export default function AllInvoice({ onNewInvoice, onViewInvoice }: AllInvoicePr
     const filtered = invoices.filter(
       (invoice) =>
         invoice.invoiceNumber.toString().includes(searchTerm.toLowerCase()) ||
-        invoice.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (invoice.type || invoice.invoiceType || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (invoice.status || 'ACTIVE').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (invoice.Date && invoice.Date.toLowerCase().includes(searchTerm.toLowerCase())),
     )
     setFilteredInvoices(filtered)
-    setCurrentPage(1) // Reset to first page when searching
+    setCurrentPage(1)
   }, [searchTerm, invoices])
 
   // Pagination
@@ -106,20 +129,52 @@ export default function AllInvoice({ onNewInvoice, onViewInvoice }: AllInvoicePr
     setCurrentPage(pageNumber)
   }
 
-  const handleNewInvoice = () => {
+  const handleNewAdvanceInvoice = () => {
     if (onNewInvoice) {
       onNewInvoice()
     }
-    // Redirect to the new invoice route with companyId
-    navigate(`/admin/new-invoice/${companyId}`)
+    navigate(`/admin/rental/advance/${companyId}`)
+  }
+
+  const handlePartialPayment = (invoiceId: string) => {
+    navigate(`/admin/rental/partial/${invoiceId}`)
+  }
+
+  const handleFullSettlement = (invoiceId: string) => {
+    navigate(`/admin/rental/full/${invoiceId}`)
   }
 
   const handleViewInvoice = (invoiceId: string) => {
     if (onViewInvoice) {
       onViewInvoice(invoiceId)
     }
-    // Redirect to the update invoice route with invoice ID
-    navigate(`/admin/update/${invoiceId}`)
+    navigate(`/admin/rental/details/${invoiceId}`)
+  }
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'ACTIVE':
+        return 'bg-blue-100 text-blue-800'
+      case 'PARTIAL_RETURNED':
+        return 'bg-yellow-100 text-yellow-800'
+      case 'COMPLETED':
+        return 'bg-green-100 text-green-800'
+      default:
+        return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const getTypeBadge = (type: string) => {
+    switch (type) {
+      case 'ADVANCE':
+        return 'bg-indigo-100 text-indigo-800'
+      case 'PARTIAL':
+        return 'bg-orange-100 text-orange-800'
+      case 'FULL':
+        return 'bg-emerald-100 text-emerald-800'
+      default:
+        return 'bg-gray-100 text-gray-800'
+    }
   }
 
   if (loading) {
@@ -127,13 +182,12 @@ export default function AllInvoice({ onNewInvoice, onViewInvoice }: AllInvoicePr
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading invoices...</p>
+          <p className="mt-4 text-gray-600">Loading rental invoices...</p>
         </div>
       </div>
     )
   }
 
-  // Only show error for actual connection/server errors
   if ((error && error.includes("Unable to connect")) || error?.includes("unexpected error")) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -157,15 +211,15 @@ export default function AllInvoice({ onNewInvoice, onViewInvoice }: AllInvoicePr
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">All Invoices</h1>
-              <p className="text-gray-600 mt-1">Manage and view all your invoices</p>
+              <h1 className="text-2xl font-bold text-gray-900">Rental Invoices</h1>
+              <p className="text-gray-600 mt-1">Manage advance payments, partial returns, and settlements</p>
             </div>
             <button
-              onClick={handleNewInvoice}
-              className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors duration-200"
+              onClick={handleNewAdvanceInvoice}
+              className="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-colors duration-200"
             >
               <Plus className="w-5 h-5 mr-2" />
-              New Invoice
+              New Advance Invoice
             </button>
           </div>
         </div>
@@ -177,14 +231,14 @@ export default function AllInvoice({ onNewInvoice, onViewInvoice }: AllInvoicePr
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
                 type="text"
-                placeholder="Search by invoice number, type, or date..."
+                placeholder="Search by invoice number, type, status, or date..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
             </div>
             <div className="text-sm text-gray-600 flex items-center">
-              Showing {currentItems.length} of {filteredInvoices.length} invoices
+              Showing {currentItems.length} of {filteredInvoices.length} rental invoices
             </div>
           </div>
         </div>
@@ -196,10 +250,22 @@ export default function AllInvoice({ onNewInvoice, onViewInvoice }: AllInvoicePr
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Invoice Number
+                    Invoice #
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Type
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Advance Amount
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Total Amount
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Outstanding
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Date
@@ -217,31 +283,65 @@ export default function AllInvoice({ onNewInvoice, onViewInvoice }: AllInvoicePr
                         <div className="text-sm font-medium text-gray-900">#{invoice.invoiceNumber}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            invoice.type === "Proforma" ? "bg-blue-100 text-blue-800" : "bg-green-100 text-green-800"
-                          }`}
-                        >
-                          {invoice.type}
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getTypeBadge(invoice.type || invoice.invoiceType || 'ADVANCE')}`}>
+                          {invoice.type || invoice.invoiceType || 'ADVANCE'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadge(invoice.status || 'ACTIVE')}`}>
+                          {(invoice.status || 'ACTIVE').replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ₹{(invoice.paymentDetails?.advanceAmount || invoice.advanceAmount || 0).toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ₹{(invoice.totalAmount || 0).toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <span className={`font-medium ${(invoice.paymentDetails?.outstandingAmount || invoice.outstandingAmount || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                          ₹{(invoice.paymentDetails?.outstandingAmount || invoice.outstandingAmount || 0).toLocaleString()}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {invoice.Date ? new Date(invoice.Date).toLocaleDateString() : "N/A"}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <button
-                          onClick={() => handleViewInvoice(invoice._id)}
-                          className="inline-flex items-center px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-md transition-colors duration-200"
-                        >
-                          <Eye className="w-4 h-4 mr-1" />
-                          View
-                        </button>
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => handleViewInvoice(invoice._id)}
+                            className="inline-flex items-center px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded-md transition-colors duration-200"
+                          >
+                            <Eye className="w-3 h-3 mr-1" />
+                            View
+                          </button>
+                          
+                          {invoice.status !== 'COMPLETED' && (invoice.paymentDetails?.outstandingAmount || invoice.outstandingAmount || 0) > 0 && (
+                            <>
+                              <button
+                                onClick={() => handlePartialPayment(invoice._id)}
+                                className="inline-flex items-center px-2 py-1 bg-orange-100 hover:bg-orange-200 text-orange-700 text-xs font-medium rounded-md transition-colors duration-200"
+                              >
+                                <CreditCard className="w-3 h-3 mr-1" />
+                                Partial
+                              </button>
+                              
+                              <button
+                                onClick={() => handleFullSettlement(invoice._id)}
+                                className="inline-flex items-center px-2 py-1 bg-green-100 hover:bg-green-200 text-green-700 text-xs font-medium rounded-md transition-colors duration-200"
+                              >
+                                <CheckCircle className="w-3 h-3 mr-1" />
+                                Full
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={4} className="px-6 py-12 text-center">
+                    <td colSpan={8} className="px-6 py-12 text-center">
                       <div className="text-gray-500">
                         <div className="mb-4">
                           <svg
@@ -258,19 +358,19 @@ export default function AllInvoice({ onNewInvoice, onViewInvoice }: AllInvoicePr
                             />
                           </svg>
                         </div>
-                        <p className="text-lg font-medium text-gray-900">No invoices found</p>
+                        <p className="text-lg font-medium text-gray-900">No rental invoices found</p>
                         <p className="mt-1 text-gray-600">
                           {searchTerm
-                            ? "Try adjusting your search terms or create a new invoice"
-                            : "Get started by creating your first invoice"}
+                            ? "Try adjusting your search terms or create a new advance invoice"
+                            : "Get started by creating your first advance invoice"}
                         </p>
                         <div className="mt-6">
                           <button
-                            onClick={handleNewInvoice}
-                            className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors duration-200"
+                            onClick={handleNewAdvanceInvoice}
+                            className="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-colors duration-200"
                           >
                             <Plus className="w-5 h-5 mr-2" />
-                            Create New Invoice
+                            Create Advance Invoice
                           </button>
                         </div>
                       </div>
@@ -324,7 +424,7 @@ export default function AllInvoice({ onNewInvoice, onViewInvoice }: AllInvoicePr
                           onClick={() => handlePageChange(page)}
                           className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
                             page === currentPage
-                              ? "z-10 bg-blue-50 border-blue-500 text-blue-600"
+                              ? "z-10 bg-indigo-50 border-indigo-500 text-indigo-600"
                               : "bg-white border-gray-300 text-gray-500 hover:bg-gray-50"
                           }`}
                         >
