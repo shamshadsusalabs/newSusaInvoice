@@ -12,23 +12,21 @@ import stamp from "../../assets/stamp.png"
 export default function FullSettlement() {
   const { invoiceId: parentInvoiceId } = useParams<{ invoiceId: string }>()
   const [isEditingMode, setIsEditingMode] = useState(true)
-   const [isProgressInvoice, setIsProgressInvoice] = useState(false)
   const [isPhysicalCopy, setIsPhysicalCopy] = useState(false)
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [currentPDFType, setCurrentPDFType] = useState<'TAX' | 'PROFORMA' | null>(null)
 
   const [companyDetails] = useState<CompanyDetails>({
-    name: "SUSAKGJYO BUSINESS PVT. LTD",
-    address: "1404, DLF CORPORATE GREEN, SECTOR 74 - A, GURGAON, HARYANA -122004 (INDIA)",
-    gstin: "06AAYCS5019E1Z3",
-    pan: "AAYCS5019E",
-    phone: "+91-8595591496, 0124-4147286 ",
-    email: "Contact@susalabs.com",
+    name: "MAHIPAL SINGH TIMBER",
+    address: "PLOT NO-25, GALI NO-E8, NEAR JAGAR CHOWK, RAM COLONY,, Faridabad, Faridabad, Haryana, 121004",
+    gstin: ": 06BROPG0987J3ZA",
+    // pan: "AAYCS5019E",
+    phone: "+91 87000 77386",
+    email: "Garvsingh1619@gmail.com",
     logo: logo,
     stamp: stamp,
   })
-
   const [invoiceData, setInvoiceData] = useState<RentalInvoiceData>({
     invoiceNumber: "001",
     Date: new Date().toISOString().split("T")[0],
@@ -99,17 +97,18 @@ export default function FullSettlement() {
 
   // Final payment state for full settlement
   const [finalPayment, setFinalPayment] = useState(0)
+  // Damage charges state (computed from items)
+  const [totalDamageCharges, setTotalDamageCharges] = useState(0)
 
   // Fetch parent invoice data
   const fetchParentInvoice = async () => {
     if (!parentInvoiceId) return
     
     try {
-      console.log('🔄 Fetching parent invoice:', parentInvoiceId)
-      const token = localStorage.getItem("token")
+      const token = localStorage.getItem("refreshToken")
       
       const response = await axios.get(
-        `http://localhost:5000/api/invoice/rental/details/${parentInvoiceId}`,
+        `https://newsusainvoice.onrender.com/api/invoice/rental/details/${parentInvoiceId}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -117,7 +116,6 @@ export default function FullSettlement() {
       
       if (response.data.success) {
         const parent = response.data.data
-        console.log('✅ Parent invoice loaded:', parent)
         
         // Populate all fields with parent invoice data
         setInvoiceData({
@@ -151,13 +149,12 @@ export default function FullSettlement() {
             status: "COMPLETED",
           },
           paymentDetails: parent.paymentDetails,
+          partialReturnHistory: parent.partialReturnHistory || [],
           invoiceType: 'FULL',
         })
         
-        console.log('✅ All fields populated with parent invoice data')
       }
     } catch (error: any) {
-      console.error("❌ Error fetching parent invoice:", error)
       alert("Error loading parent invoice details")
     }
   }
@@ -176,7 +173,6 @@ export default function FullSettlement() {
 
   const updateInvoiceData = (path: string, value: any) => {
     // Debug console logs
-    console.log('🔧 updateInvoiceData called:', { path, value })
     
     setInvoiceData(prev => {
       const keys = path.split('.')
@@ -194,11 +190,7 @@ export default function FullSettlement() {
       
       // Debug: Log the updated data
       if (path.includes('endDate')) {
-        console.log('📅 End date updated:', {
-          path,
-          value,
-          updatedItems: newData.items
-        })
+        // debug removed
       }
       
       return newData
@@ -233,11 +225,22 @@ export default function FullSettlement() {
     calculateAmounts()
   }, [])
 
+  // Recalculate total damage charges whenever item damage fields change
+  useEffect(() => {
+    const total = (invoiceData.items || []).reduce((sum, item) => {
+      const damagedQty = typeof item.damagedQuantity === 'string' ? parseFloat(item.damagedQuantity) || 0 : item.damagedQuantity || 0
+      const finePerUnit = typeof item.damageFinePerUnit === 'string' ? parseFloat(item.damageFinePerUnit) || 0 : item.damageFinePerUnit || 0
+      const amt = damagedQty * finePerUnit
+      return sum + amt
+    }, 0)
+    setTotalDamageCharges(total)
+  }, [invoiceData.items])
+
   const handleSaveAndGeneratePDF = async (type: 'TAX' | 'PROFORMA') => {
     setIsGeneratingPDF(true)
     setCurrentPDFType(type) // Set type for header display
     try {
-      const token = localStorage.getItem('token')
+      const token = localStorage.getItem('refreshToken')
       
       // Add companyId and type to the request payload
       const { paymentTerms, rentalDetails, ...invoiceDataWithoutUnused } = invoiceData
@@ -253,12 +256,17 @@ export default function FullSettlement() {
         if (!cleanedItem.startDate || cleanedItem.startDate.trim() === '') {
           delete cleanedItem.startDate
         }
+        // Ensure numeric damageAmount consistency
+        const damagedQty = typeof cleanedItem.damagedQuantity === 'string' ? parseFloat(cleanedItem.damagedQuantity) || 0 : cleanedItem.damagedQuantity || 0
+        const finePerUnit = typeof cleanedItem.damageFinePerUnit === 'string' ? parseFloat(cleanedItem.damageFinePerUnit) || 0 : cleanedItem.damageFinePerUnit || 0
+        cleanedItem.damageAmount = damagedQty * finePerUnit
         return cleanedItem
       })
       
       // Calculate final settlement data
       const currentOutstanding = invoiceData.paymentDetails?.outstandingAmount || 0
-      const finalOutstanding = Math.max(0, currentOutstanding - finalPayment)
+      const damageCharges = totalDamageCharges || 0
+      const finalOutstanding = Math.max(0, (currentOutstanding + damageCharges) - finalPayment)
       
       const requestData = {
         ...invoiceDataWithoutUnused,
@@ -274,6 +282,7 @@ export default function FullSettlement() {
           ...invoiceDataWithoutUnused.paymentDetails,
           paidAmount: (invoiceData.paymentDetails?.paidAmount || 0) + finalPayment,
           outstandingAmount: finalOutstanding,
+          damageCharges: damageCharges,
           finalPayment: finalPayment,
           settlementDate: new Date().toISOString().split('T')[0]
         },
@@ -285,16 +294,10 @@ export default function FullSettlement() {
       }
       
       // Console log the complete payload
-      console.log('🚀 PAYLOAD BEING SENT TO BACKEND:')
-      console.log('📦 Request Data:', JSON.stringify(requestData, null, 2))
-      console.log('🏢 Parent Invoice ID:', parentInvoiceId)
-      console.log('📄 Invoice Type:', type)
-      console.log('💰 Total Amount:', requestData.totalAmount)
-      console.log('🧾 Items Count:', requestData.items?.length)
       
       // Update existing invoice with partial return data
       const response = await axios.put(
-        `http://localhost:5000/api/invoice/rental/update/${parentInvoiceId}`,
+        `https://newsusainvoice.onrender.com/api/invoice/rental/update/${parentInvoiceId}`,
         requestData,
         {
           headers: {
@@ -392,12 +395,11 @@ export default function FullSettlement() {
             duplicatePdf.save(`${baseFilename}-duplicate.pdf`)
           }, 500)
           
-          alert(`${type} invoice saved successfully!\n\n✅ Original PDF: ${baseFilename}-original.pdf\n✅ Duplicate PDF: ${baseFilename}-duplicate.pdf`)
+          alert(`${type} invoice saved successfully!\n\nâœ… Original PDF: ${baseFilename}-original.pdf\nâœ… Duplicate PDF: ${baseFilename}-duplicate.pdf`)
           setIsEditingMode(false)
         }
       }
     } catch (error) {
-      console.error('Error saving invoice or generating PDF:', error)
       alert('Error saving invoice or generating PDF. Please try again.')
     } finally {
       setIsGeneratingPDF(false)
@@ -466,8 +468,148 @@ export default function FullSettlement() {
           invoiceType="FULL"
         />
 
+        {/* Partial Return History (Read-only) */}
+        {(invoiceData.partialReturnHistory && invoiceData.partialReturnHistory.length > 0) && (
+          <div style={{
+            backgroundColor: '#ecfeff',
+            padding: '20px',
+            borderRadius: '8px',
+            marginTop: '16px',
+            border: '2px solid #06b6d4'
+          }}>
+            <h3 style={{ fontWeight: 'bold', marginBottom: '12px', color: '#164e63', fontSize: '18px' }}> Partial Return History</h3>
+            {invoiceData.partialReturnHistory.map((entry: any, idx: number) => (
+              <div key={idx} style={{ marginBottom: '16px' }}>
+                <div style={{ display: 'flex', gap: '16px', marginBottom: '8px', fontSize: '13px' }}>
+                  <div><strong>Date:</strong> {entry.returnDate || '-'}</div>
+                  {typeof entry.partialPayment === 'number' && (
+                    <div><strong>Partial Payment:</strong> ₹{(entry.partialPayment || 0).toLocaleString()}</div>
+                  )}
+                </div>
+                {entry.notes && (
+                  <div style={{ fontSize: '12px', color: '#334155', marginBottom: '8px' }}><strong>Notes:</strong> {entry.notes}</div>
+                )}
+                {(entry.returnedItems && entry.returnedItems.length > 0) ? (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#cffafe' }}>
+                          <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #67e8f9' }}>Product</th>
+                          <th style={{ textAlign: 'right', padding: '8px', borderBottom: '1px solid #67e8f9' }}>Returned Qty</th>
+                          <th style={{ textAlign: 'right', padding: '8px', borderBottom: '1px solid #67e8f9' }}>Partial Amount (₹)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {entry.returnedItems.map((ri: any, rIdx: number) => (
+                          <tr key={rIdx}>
+                            <td style={{ padding: '8px', borderBottom: '1px solid #bae6fd' }}>{ri.productName || `Item ${rIdx + 1}`}</td>
+                            <td style={{ padding: '8px', borderBottom: '1px solid #bae6fd', textAlign: 'right' }}>{ri.returnedQuantity || 0}</td>
+                            <td style={{ padding: '8px', borderBottom: '1px solid #bae6fd', textAlign: 'right' }}>₹{(ri.partialAmount || 0).toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '12px', color: '#64748b' }}>No returned items recorded in this entry.</div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Damage/Fine Section */}
+        {true && (
+          <div style={{
+            backgroundColor: '#fff7ed',
+            padding: '20px',
+            borderRadius: '8px',
+            marginTop: '16px',
+            border: '2px solid #fb923c'
+          }}>
+            <h3 style={{ fontWeight: 'bold', marginBottom: '12px', color: '#7c2d12', fontSize: '18px' }}> Damage / Fine Details</h3>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#ffedd5' }}>
+                    <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #fdba74' }}>Product</th>
+                    <th style={{ textAlign: 'right', padding: '8px', borderBottom: '1px solid #fdba74' }}>Rented Qty</th>
+                    <th style={{ textAlign: 'right', padding: '8px', borderBottom: '1px solid #fdba74' }}>Damaged Qty</th>
+                    <th style={{ textAlign: 'right', padding: '8px', borderBottom: '1px solid #fdba74' }}>Fine / Unit (₹)</th>
+                    <th style={{ textAlign: 'right', padding: '8px', borderBottom: '1px solid #fdba74' }}>Damage Amount (₹)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoiceData.items.map((item, idx) => {
+                    const rentedQty = typeof item.rentedQuantity === 'string' ? parseFloat(item.rentedQuantity) || 0 : item.rentedQuantity || 0
+                    const damagedQty = typeof item.damagedQuantity === 'string' ? parseFloat(item.damagedQuantity) || 0 : item.damagedQuantity || 0
+                    const finePerUnit = typeof item.damageFinePerUnit === 'string' ? parseFloat(item.damageFinePerUnit) || 0 : item.damageFinePerUnit || 0
+                    const dmgAmt = damagedQty * finePerUnit
+                    return (
+                      <tr key={idx}>
+                        <td style={{ padding: '8px', borderBottom: '1px solid #fde68a' }}>{item.productName || `Item ${idx + 1}`}</td>
+                        <td style={{ padding: '8px', borderBottom: '1px solid #fde68a', textAlign: 'right' }}>{rentedQty}</td>
+                        <td style={{ padding: '8px', borderBottom: '1px solid #fde68a', textAlign: 'right' }}>
+                          {isEditingMode ? (
+                            <input
+                              type="number"
+                              min={0}
+                              max={rentedQty}
+                              value={item.damagedQuantity as any || ''}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value) || 0
+                                setInvoiceData(prev => {
+                                  const items = [...prev.items]
+                                  const updated = { ...items[idx], damagedQuantity: val, damageAmount: (val) * (finePerUnit) }
+                                  items[idx] = updated
+                                  return { ...prev, items }
+                                })
+                              }}
+                              style={{ width: '100%', padding: '6px', border: '1px solid #fb923c', borderRadius: '4px', backgroundColor: '#fff7ed' }}
+                            />
+                          ) : (
+                            <span>{damagedQty}</span>
+                          )}
+                        </td>
+                        <td style={{ padding: '8px', borderBottom: '1px solid #fde68a', textAlign: 'right' }}>
+                          {isEditingMode ? (
+                            <input
+                              type="number"
+                              min={0}
+                              value={item.damageFinePerUnit as any || ''}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value) || 0
+                                setInvoiceData(prev => {
+                                  const items = [...prev.items]
+                                  const updated = { ...items[idx], damageFinePerUnit: val, damageAmount: (damagedQty) * (val) }
+                                  items[idx] = updated
+                                  return { ...prev, items }
+                                })
+                              }}
+                              style={{ width: '100%', padding: '6px', border: '1px solid #fb923c', borderRadius: '4px', backgroundColor: '#fff7ed' }}
+                            />
+                          ) : (
+                            <span>₹{(finePerUnit || 0).toLocaleString()}</span>
+                          )}
+                        </td>
+                        <td style={{ padding: '8px', borderBottom: '1px solid #fde68a', textAlign: 'right', fontWeight: 600 }}>₹{dmgAmt.toLocaleString()}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colSpan={4} style={{ textAlign: 'right', padding: '10px', fontWeight: 700 }}>Total Damage Charges:</td>
+                    <td style={{ textAlign: 'right', padding: '10px', fontWeight: 700, color: '#b45309' }}>₹{(totalDamageCharges || 0).toLocaleString()}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        )}
+
         {/* Final Payment Section for Full Settlement */}
-        {isEditingMode && (
+        {true && (
           <div style={{ 
             backgroundColor: "#f0f9ff", 
             padding: "20px", 
@@ -475,46 +617,58 @@ export default function FullSettlement() {
             marginTop: "20px",
             border: "2px solid #0ea5e9"
           }}>
-            <h3 style={{ fontWeight: "bold", marginBottom: "16px", color: "#0c4a6e", fontSize: "18px" }}>🏁 Final Settlement Payment</h3>
+            <h3 style={{ fontWeight: "bold", marginBottom: "16px", color: "#0c4a6e", fontSize: "18px" }}>Final Settlement Payment</h3>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", fontSize: "14px" }}>
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px" }}>
                   <span style={{ fontWeight: "600" }}>Current Outstanding:</span>
                   <span style={{ fontWeight: "bold", fontSize: "18px", color: "#dc2626" }}>₹{(invoiceData.paymentDetails?.outstandingAmount || 0).toLocaleString()}</span>
                 </div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
+                  <span style={{ fontWeight: 600 }}>Damage Charges (Total):</span>
+                  <span style={{ fontWeight: "bold", color: "#b45309" }}>₹{(totalDamageCharges || 0).toLocaleString()}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "16px" }}>
+                  <span style={{ fontWeight: 600 }}>Outstanding + Damages:</span>
+                  <span style={{ fontWeight: "bold", color: "#7c3aed" }}>₹{(((invoiceData.paymentDetails?.outstandingAmount || 0) + (totalDamageCharges || 0)) || 0).toLocaleString()}</span>
+                </div>
                 
                 <div style={{ marginBottom: "16px" }}>
                   <label style={{ display: "block", marginBottom: "6px", fontWeight: "600", color: "#0c4a6e" }}>Final Payment Amount:</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={finalPayment || ''}
-                    onChange={(e) => setFinalPayment(parseFloat(e.target.value) || 0)}
-                    style={{
-                      border: "2px solid #0ea5e9",
-                      padding: "12px",
-                      borderRadius: "6px",
-                      fontSize: "16px",
-                      width: "100%",
-                      backgroundColor: "#f8fafc"
-                    }}
-                    placeholder="Enter final settlement amount (₹)"
-                  />
+                  {isEditingMode ? (
+                    <input
+                      type="number"
+                      min="0"
+                      value={finalPayment || ''}
+                      onChange={(e) => setFinalPayment(parseFloat(e.target.value) || 0)}
+                      style={{
+                        border: "2px solid #0ea5e9",
+                        padding: "12px",
+                        borderRadius: "6px",
+                        fontSize: "16px",
+                        width: "100%",
+                        backgroundColor: "#f8fafc"
+                      }}
+                      placeholder="Enter final settlement amount (₹)"
+                    />
+                  ) : (
+                    <div style={{ fontWeight: 700 }}>₹{(finalPayment || 0).toLocaleString()}</div>
+                  )}
                 </div>
               </div>
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px", fontWeight: "bold", fontSize: "16px" }}>
                   <span>After Payment Outstanding:</span>
-                  <span style={{ color: finalPayment >= (invoiceData.paymentDetails?.outstandingAmount || 0) ? "#059669" : "#dc2626" }}>
-                    ₹{Math.max(0, (invoiceData.paymentDetails?.outstandingAmount || 0) - finalPayment).toLocaleString()}
+                  <span style={{ color: finalPayment >= ((invoiceData.paymentDetails?.outstandingAmount || 0) + (totalDamageCharges || 0)) ? "#059669" : "#dc2626" }}>
+                    ₹{Math.max(0, ((invoiceData.paymentDetails?.outstandingAmount || 0) + (totalDamageCharges || 0)) - finalPayment).toLocaleString()}
                   </span>
                 </div>
                 <div style={{ fontSize: "12px", color: "#6b7280", fontStyle: "italic", backgroundColor: "#f8fafc", padding: "8px", borderRadius: "4px", border: "1px solid #cbd5e1" }}>
-                  💡 Final settlement will mark all items as returned and rental as completed
+                   Final settlement will mark all items as returned and rental as completed
                 </div>
-                {finalPayment >= (invoiceData.paymentDetails?.outstandingAmount || 0) && (
+                {finalPayment >= ((invoiceData.paymentDetails?.outstandingAmount || 0) + (totalDamageCharges || 0)) && (
                   <div style={{ fontSize: "12px", color: "#059669", fontWeight: "bold", marginTop: "8px", backgroundColor: "#f0fdf4", padding: "8px", borderRadius: "4px", border: "1px solid #22c55e" }}>
-                    ✅ Outstanding will be fully settled!
+                    Outstanding will be fully settled!
                   </div>
                 )}
               </div>
@@ -535,3 +689,4 @@ export default function FullSettlement() {
     </div>
   )
 }
+

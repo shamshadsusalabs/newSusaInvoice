@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { Edit, Download, Eye, EyeOff } from "lucide-react"
 
@@ -10,12 +10,13 @@ interface RentalActionsProps {
   handleSave?: () => Promise<void>
   handlePrint?: () => void
   handleDownloadPDF?: () => void
-  isPhysicalCopy: boolean
-  setIsPhysicalCopy: (physical: boolean) => void
+  isPhysicalCopy?: boolean
+  setIsPhysicalCopy?: (physical: boolean) => void
   showLabels?: boolean
   setShowLabels?: (show: boolean) => void
   isGeneratingPDF?: boolean
   isSaving?: boolean
+  showPhysicalToggle?: boolean
 }
 
 export default function RentalActions({
@@ -28,10 +29,9 @@ export default function RentalActions({
   handleDownloadPDF,
   isPhysicalCopy,
   setIsPhysicalCopy,
-  showLabels,
-  setShowLabels,
   isGeneratingPDF = false,
   isSaving = false,
+  showPhysicalToggle = true,
 }: RentalActionsProps) {
   return (
     <div
@@ -72,29 +72,31 @@ export default function RentalActions({
 
       <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
         {/* Toggle Button */}
-        <button
-          onClick={() => setIsPhysicalCopy(!isPhysicalCopy)}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
-            backgroundColor: isPhysicalCopy ? "#2563eb" : "#e5e7eb",
-            color: isPhysicalCopy ? "white" : "#374151",
-            border: "none",
-            padding: "8px 12px",
-            borderRadius: "4px",
-            fontSize: "12px",
-            cursor: "pointer",
-            transition: "all 0.2s",
-          }}
-        >
-          {isPhysicalCopy ? (
-            <Eye style={{ width: "14px", height: "14px" }} />
-          ) : (
-            <EyeOff style={{ width: "14px", height: "14px" }} />
-          )}
-          Physical Copy
-        </button>
+        {showPhysicalToggle && typeof isPhysicalCopy === 'boolean' && typeof setIsPhysicalCopy === 'function' && (
+          <button
+            onClick={() => setIsPhysicalCopy(!isPhysicalCopy)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              backgroundColor: isPhysicalCopy ? "#2563eb" : "#e5e7eb",
+              color: isPhysicalCopy ? "white" : "#374151",
+              border: "none",
+              padding: "8px 12px",
+              borderRadius: "4px",
+              fontSize: "12px",
+              cursor: "pointer",
+              transition: "all 0.2s",
+            }}
+          >
+            {isPhysicalCopy ? (
+              <Eye style={{ width: "14px", height: "14px" }} />
+            ) : (
+              <EyeOff style={{ width: "14px", height: "14px" }} />
+            )}
+            Physical Copy
+          </button>
+        )}
 
         {/* Action Buttons - Conditional based on invoice type */}
         <div style={{ display: "flex", gap: "8px" }}>
@@ -227,7 +229,7 @@ export default function RentalActions({
           )}
         </div>
         
-        {/* Edit Mode Warning */}
+        {/* Edit Mode Hint */}
         {isEditingMode && (
           <div style={{
             fontSize: "12px",
@@ -237,10 +239,15 @@ export default function RentalActions({
             display: "flex",
             alignItems: "center"
           }}>
-            💡 Finish editing to generate PDFs
+            {handleTaxPDF || handleProformaPDF
+              ? "ðŸ’¡ Finish editing to generate PDFs"
+              : handleSave
+              ? "ðŸ’¡ Finish editing to save"
+              : ""}
           </div>
         )}
       </div>
     </div>
   )
 }
+

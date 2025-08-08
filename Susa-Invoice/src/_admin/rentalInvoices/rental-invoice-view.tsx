@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 import { useState, useEffect } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import axios from "axios"
@@ -12,7 +12,7 @@ export default function RentalInvoiceView() {
   const navigate = useNavigate()
   const [isLoading, setIsLoading] = useState(true)
   const [invoice, setInvoice] = useState<RentalInvoiceData | null>(null)
-  const [companyDetails, setCompanyDetails] = useState<any>(null)
+
 
   // Fetch invoice details
   useEffect(() => {
@@ -21,23 +21,16 @@ export default function RentalInvoiceView() {
 
       try {
         const token = localStorage.getItem('token') || localStorage.getItem('refreshToken')
-        const response = await axios.get(`http://localhost:5000/api/invoice/getbyId/${invoiceId}`, {
+        const response = await axios.get(`https://newsusainvoice.onrender.com/api/invoice/getbyId/${invoiceId}`, {
           headers: { Authorization: `Bearer ${token}` }
         })
 
         if (response.data) {
           setInvoice(response.data)
           
-          // Fetch company details if companyId exists
-          if (response.data.companyId) {
-            const companyResponse = await axios.get(`http://localhost:5000/api/companies/getById/${response.data.companyId}`, {
-              headers: { Authorization: `Bearer ${token}` }
-            })
-            setCompanyDetails(companyResponse.data)
-          }
+          // Company details fetching removed as it's not used in this component
         }
       } catch (error) {
-        console.error("Error fetching invoice details:", error)
         alert("Error loading invoice details")
       } finally {
         setIsLoading(false)
@@ -217,7 +210,7 @@ export default function RentalInvoiceView() {
                 <th className="border border-gray-300 p-2 text-center">Daily Rate</th>
                 <th className="border border-gray-300 p-2 text-center">Days</th>
                 <th className="border border-gray-300 p-2 text-center">HSN Code</th>
-                <th className="border border-gray-300 p-2 text-right">Amount (₹)</th>
+                <th className="border border-gray-300 p-2 text-right">Amount (â‚¹)</th>
               </tr>
             </thead>
             <tbody>
@@ -240,10 +233,10 @@ export default function RentalInvoiceView() {
                       <div className="text-xs text-gray-600">(-{item.returnedQuantity})</div>
                     )}
                   </td>
-                  <td className="border border-gray-300 p-2 text-center">₹{item.dailyRate}</td>
+                  <td className="border border-gray-300 p-2 text-center">â‚¹{item.dailyRate}</td>
                   <td className="border border-gray-300 p-2 text-center">{item.actualDays || item.totalDays || invoice.rentalDetails?.totalDays || 0}</td>
                   <td className="border border-gray-300 p-2 text-center">{item.hsnCode}</td>
-                  <td className="border border-gray-300 p-2 text-right">₹{(item.rentAmount || item.amount || 0).toLocaleString()}</td>
+                  <td className="border border-gray-300 p-2 text-right">â‚¹{(item.rentAmount || item.amount || 0).toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>
@@ -259,26 +252,26 @@ export default function RentalInvoiceView() {
                 <div className="text-sm space-y-1">
                   <div className="flex justify-between">
                     <span>Total Rent Amount:</span>
-                    <span>₹{invoice.paymentDetails.totalRentAmount?.toLocaleString()}</span>
+                    <span>â‚¹{invoice.paymentDetails.totalRentAmount?.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Advance Payment:</span>
-                    <span>₹{invoice.paymentDetails.advanceAmount?.toLocaleString()}</span>
+                    <span>â‚¹{invoice.paymentDetails.advanceAmount?.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Total Paid:</span>
-                    <span>₹{invoice.paymentDetails.paidAmount?.toLocaleString()}</span>
+                    <span>â‚¹{invoice.paymentDetails.paidAmount?.toLocaleString()}</span>
                   </div>
                   {invoice.paymentDetails.refundAmount > 0 && (
                     <div className="flex justify-between text-green-600">
                       <span>Refund Amount:</span>
-                      <span>₹{invoice.paymentDetails.refundAmount?.toLocaleString()}</span>
+                      <span>â‚¹{invoice.paymentDetails.refundAmount?.toLocaleString()}</span>
                     </div>
                   )}
                   <div className="flex justify-between font-bold border-t pt-1">
                     <span>Outstanding:</span>
                     <span className={invoice.paymentDetails.outstandingAmount > 0 ? 'text-red-600' : 'text-green-600'}>
-                      ₹{invoice.paymentDetails.outstandingAmount?.toLocaleString()}
+                      â‚¹{invoice.paymentDetails.outstandingAmount?.toLocaleString()}
                     </span>
                   </div>
                 </div>
@@ -286,7 +279,7 @@ export default function RentalInvoiceView() {
               <div>
                 <h3 className="font-bold text-gray-800 mb-2">Total Amount:</h3>
                 <div className="text-2xl font-bold text-blue-600">
-                  ₹{invoice.totalAmount?.toLocaleString()}
+                  â‚¹{invoice.totalAmount?.toLocaleString()}
                 </div>
                 <div className="text-sm text-gray-600 mt-1">
                   {invoice.invoiceType === 'ADVANCE' ? 'Advance Payment' :
@@ -353,3 +346,4 @@ export default function RentalInvoiceView() {
     </div>
   )
 }
+

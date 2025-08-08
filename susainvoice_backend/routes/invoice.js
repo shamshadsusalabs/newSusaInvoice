@@ -9,7 +9,8 @@ import {
   getNextInvoiceNumber,
   getBillToList,
   searchInvoicesByIdentifier,
-  getInvoiceSummaryByCompanyId
+  getInvoiceSummaryByCompanyId,
+  getRentalAnalytics
 } from "../controllers/invoices.js";
 import auth from '../middlewares/authMiddleware.js';
 
@@ -44,5 +45,8 @@ router.get('/rental/company/:companyId', auth, getInvoiceSummaryByCompanyId);
 
 // Get specific rental invoice details by ID (for partial return)
 router.get('/rental/details/:id', getInvoiceById);
+
+// Get detailed rental analytics for advanced reporting
+router.get('/rental/analytics/:companyId', auth, getRentalAnalytics);
 
 export default router;

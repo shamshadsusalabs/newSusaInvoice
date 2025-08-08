@@ -5,18 +5,26 @@ import Invoice from "../models/invoices.js";
 // Helper function to generate next invoice number in format INV-2500, INV-2501
 const generateNextInvoiceNumber = async () => {
   try {
-    // Find the last invoice with INV- prefix
-    const lastInvoice = await Invoice.findOne({
-      invoiceNumber: { $regex: /^INV-\d+$/ }
-    }).sort({ invoiceNumber: -1 });
+    // Find all invoices and extract numbers from any format containing INV-number
+    const allInvoices = await Invoice.find({
+      invoiceNumber: { $regex: /INV-\d+/ }  // Match any format containing INV-number
+    });
     
-    if (!lastInvoice) {
-      return 'INV-2500'; // Start from INV-2500
-    }
+    let maxNumber = 2499; // Start from 2499 so next will be 2500
     
-    // Extract number from INV-2500 format
-    const lastNumber = parseInt(lastInvoice.invoiceNumber.split('-')[1]);
-    const nextNumber = lastNumber + 1;
+    allInvoices.forEach(invoice => {
+      // Extract number from formats like "INV-2500", "FULL-PARTIAL-INV-2500", etc.
+      const match = invoice.invoiceNumber.match(/INV-(\d+)/);
+      if (match) {
+        const number = parseInt(match[1]);
+        if (number > maxNumber) {
+          maxNumber = number;
+        }
+      }
+    });
+    
+    const nextNumber = maxNumber + 1;
+    console.log(`🔢 Generated next invoice number: INV-${nextNumber} (previous max: ${maxNumber})`);
     
     return `INV-${nextNumber}`;
   } catch (error) {
@@ -28,7 +36,7 @@ const generateNextInvoiceNumber = async () => {
 // CREATE New Invoice (Main function for all invoice types)
 export const createInvoice = async (req, res) => {
   try {
-    console.log('📦 Received payload:', JSON.stringify(req.body, null, 2));
+   
     
     // Generate next invoice number
     const nextInvoiceNumber = await generateNextInvoiceNumber();
@@ -56,12 +64,12 @@ export const createInvoice = async (req, res) => {
       }
     };
     
-    console.log('🚀 Creating invoice with number:', nextInvoiceNumber);
+   
     
     const newInvoice = new Invoice(invoiceData);
     const savedInvoice = await newInvoice.save();
     
-    console.log('✅ Invoice created successfully:', savedInvoice._id);
+    
     
     res.status(201).json({
       success: true,
@@ -151,8 +159,7 @@ export const updateInvoiceById = async (req, res) => {
 export const updateRentalInvoice = async (req, res) => {
   try {
     const { id } = req.params;
-    console.log('🔄 Updating rental invoice:', id);
-    console.log('📦 Update payload:', JSON.stringify(req.body, null, 2));
+   
     
     // Find the existing invoice
     const existingInvoice = await Invoice.findById(id);
@@ -167,10 +174,32 @@ export const updateRentalInvoice = async (req, res) => {
     const totalAmount = req.body.totalAmount || existingInvoice.totalAmount || 0;
     const originalAdvance = existingInvoice.paymentDetails?.advanceAmount || 0;
     const newPaidAmount = parseFloat(req.body.paymentDetails?.paidAmount || 0);
+    const damageCharges = parseFloat(req.body.paymentDetails?.damageCharges || 0);
     
     // Calculate new outstanding amount
-    const newOutstandingAmount = Math.max(0, totalAmount - originalAdvance - newPaidAmount);
+    const settlementFinalAmount = totalAmount + damageCharges;
+    const newOutstandingAmount = Math.max(0, settlementFinalAmount - originalAdvance - newPaidAmount);
     
+    // Build partial return history entry if this is a PARTIAL update
+    let updatedPartialHistory = existingInvoice.partialReturnHistory || [];
+    if (req.body.invoiceType === 'PARTIAL') {
+      const entryDate = req.body.rentalDetails?.partialReturnDate || req.body.Date || new Date().toISOString().split('T')[0];
+      const returnedItems = (req.body.items || [])
+        .map(it => ({
+          productName: it.productName,
+          returnedQuantity: parseInt(it.returnedQuantity) || 0,
+          partialAmount: parseFloat(it.amount) || 0
+        }))
+        .filter(it => it.returnedQuantity > 0);
+      const historyEntry = {
+        returnDate: entryDate,
+        returnedItems,
+        partialPayment: parseFloat(req.body.paymentDetails?.paidAmount || 0),
+        notes: req.body.notes || 'Partial return recorded'
+      };
+      updatedPartialHistory = [...updatedPartialHistory, historyEntry];
+    }
+
     // Prepare update data with proper payment calculations
     const updateData = {
       ...req.body,
@@ -180,8 +209,9 @@ export const updateRentalInvoice = async (req, res) => {
         totalRentAmount: totalAmount,
         advanceAmount: originalAdvance, // Keep original advance
         paidAmount: newPaidAmount,
+        damageCharges: damageCharges,
         outstandingAmount: newOutstandingAmount,
-        finalAmount: totalAmount
+        finalAmount: settlementFinalAmount
       },
       // Update rental status based on invoice type
       rentalDetails: {
@@ -189,16 +219,14 @@ export const updateRentalInvoice = async (req, res) => {
         ...req.body.rentalDetails,
         status: req.body.invoiceType === 'FULL' ? 'COMPLETED' : 'PARTIAL_RETURN'
       },
+      // Preserve or append partial return history
+      partialReturnHistory: updatedPartialHistory,
       // Add update timestamp
       lastUpdated: new Date()
     };
     
-    console.log('💰 Payment calculation:', {
-      totalAmount,
-      originalAdvance,
-      newPaidAmount,
-      newOutstandingAmount
-    });
+
+   
     
     // Update the invoice
     const updatedInvoice = await Invoice.findByIdAndUpdate(
@@ -207,11 +235,11 @@ export const updateRentalInvoice = async (req, res) => {
       { new: true, runValidators: true }
     );
     
-    console.log('✅ Rental invoice updated successfully:', updatedInvoice._id);
+    
     
     res.json({
       success: true,
-      message: 'Rental invoice updated successfully with partial return data',
+      message: `Rental invoice updated successfully (${req.body.invoiceType || 'UPDATE'})`,
       data: updatedInvoice
     });
     
@@ -295,6 +323,215 @@ export const getBillToList = async (req, res) => {
       success: false, 
       message: 'Internal Server Error', 
       error: error.message 
+    });
+  }
+};
+
+// GET Rental Analytics Data - Advanced detailed reporting
+export const getRentalAnalytics = async (req, res) => {
+  try {
+    const { companyId } = req.params;
+    const { from, to } = req.query;
+    
+    console.log('📊 Fetching rental analytics for company:', companyId);
+    
+    // Build date filter
+    let dateFilter = {};
+    if (from || to) {
+      dateFilter.Date = {};
+      if (from) dateFilter.Date.$gte = from;
+      if (to) dateFilter.Date.$lte = to;
+    }
+    
+    // Get all rental invoices for the company
+    const invoices = await Invoice.find({
+      companyId,
+      ...dateFilter
+    }).sort({ Date: -1 });
+    
+    console.log(`📋 Found ${invoices.length} invoices for analytics`);
+    
+    // Initialize analytics data
+    const analytics = {
+      overview: {
+        totalProductsRented: 0,
+        totalProductsReturned: 0,
+        totalProductsPending: 0,
+        totalRevenue: 0,
+        totalClients: 0,
+        activeRentals: 0,
+        completedRentals: 0,
+        partialReturns: 0,
+      },
+      productAnalytics: new Map(),
+      clientAnalytics: new Map(),
+      detailedHistory: [],
+      monthlyTrends: new Map(),
+    };
+    
+    // Process each invoice
+    invoices.forEach(invoice => {
+      const clientName = invoice.billTo?.name || 'Unknown Client';
+      const invoiceDate = new Date(invoice.Date);
+      const monthKey = `${invoiceDate.getFullYear()}-${String(invoiceDate.getMonth() + 1).padStart(2, '0')}`;
+      
+      // Update overview stats
+      analytics.overview.totalRevenue += invoice.totalAmount || 0;
+      
+      // Count invoice types
+      if (invoice.invoiceType === 'PARTIAL') {
+        analytics.overview.partialReturns++;
+      }
+      
+      // Count rental status
+      if (invoice.rentalDetails?.status === 'ACTIVE') {
+        analytics.overview.activeRentals++;
+      } else if (invoice.rentalDetails?.status === 'COMPLETED') {
+        analytics.overview.completedRentals++;
+      }
+      
+      // Process items
+      if (invoice.items && Array.isArray(invoice.items)) {
+        invoice.items.forEach(item => {
+          const productName = item.productName || 'Unknown Product';
+          const rentedQty = parseInt(item.rentedQuantity) || 0;
+          const returnedQty = parseInt(item.returnedQuantity) || 0;
+          const dailyRate = parseFloat(item.dailyRate) || 0;
+          const totalDays = parseInt(item.totalDays) || 0;
+          const itemAmount = parseFloat(item.amount) || 0;
+          
+          // Update overview totals
+          analytics.overview.totalProductsRented += rentedQty;
+          analytics.overview.totalProductsReturned += returnedQty;
+          analytics.overview.totalProductsPending += (rentedQty - returnedQty);
+          
+          // Update product analytics
+          if (!analytics.productAnalytics.has(productName)) {
+            analytics.productAnalytics.set(productName, {
+              productName,
+              totalRented: 0,
+              totalReturned: 0,
+              currentlyRented: 0,
+              totalRevenue: 0,
+              avgDailyRate: 0,
+              totalRentalDays: 0,
+              rateSum: 0,
+              rateCount: 0,
+            });
+          }
+          
+          const productStats = analytics.productAnalytics.get(productName);
+          productStats.totalRented += rentedQty;
+          productStats.totalReturned += returnedQty;
+          productStats.currentlyRented += (rentedQty - returnedQty);
+          productStats.totalRevenue += itemAmount;
+          productStats.totalRentalDays += totalDays;
+          productStats.rateSum += dailyRate;
+          productStats.rateCount++;
+          productStats.avgDailyRate = productStats.rateSum / productStats.rateCount;
+          
+          // Update client analytics
+          if (!analytics.clientAnalytics.has(clientName)) {
+            analytics.clientAnalytics.set(clientName, {
+              clientName,
+              totalInvoices: 0,
+              totalRented: 0,
+              totalReturned: 0,
+              pendingReturns: 0,
+              totalPaid: 0,
+              outstandingAmount: 0,
+              lastRentalDate: invoice.Date,
+            });
+          }
+          
+          const clientStats = analytics.clientAnalytics.get(clientName);
+          clientStats.totalRented += rentedQty;
+          clientStats.totalReturned += returnedQty;
+          clientStats.pendingReturns += (rentedQty - returnedQty);
+          
+          // Update last rental date if this is more recent
+          if (new Date(invoice.Date) > new Date(clientStats.lastRentalDate)) {
+            clientStats.lastRentalDate = invoice.Date;
+          }
+        });
+      }
+      
+      // Update client invoice count and payment details
+      const clientName2 = invoice.billTo?.name || 'Unknown Client';
+      if (analytics.clientAnalytics.has(clientName2)) {
+        const clientStats = analytics.clientAnalytics.get(clientName2);
+        clientStats.totalInvoices++;
+        clientStats.totalPaid += parseFloat(invoice.paymentDetails?.paidAmount) || 0;
+        clientStats.outstandingAmount += parseFloat(invoice.paymentDetails?.outstandingAmount) || 0;
+      }
+      
+      // Update monthly trends
+      if (!analytics.monthlyTrends.has(monthKey)) {
+        analytics.monthlyTrends.set(monthKey, {
+          month: monthKey,
+          rented: 0,
+          returned: 0,
+          revenue: 0,
+        });
+      }
+      
+      const monthStats = analytics.monthlyTrends.get(monthKey);
+      monthStats.revenue += invoice.totalAmount || 0;
+      
+      if (invoice.items) {
+        invoice.items.forEach(item => {
+          monthStats.rented += parseInt(item.rentedQuantity) || 0;
+          monthStats.returned += parseInt(item.returnedQuantity) || 0;
+        });
+      }
+      
+      // Add to detailed history
+      analytics.detailedHistory.push({
+        invoiceId: invoice._id,
+        invoiceNumber: invoice.invoiceNumber,
+        clientName: invoice.billTo?.name || 'Unknown Client',
+        invoiceType: invoice.invoiceType || 'ADVANCE',
+        date: invoice.Date,
+        items: (invoice.items || []).map(item => ({
+          productName: item.productName || 'Unknown Product',
+          rentedQuantity: parseInt(item.rentedQuantity) || 0,
+          returnedQuantity: parseInt(item.returnedQuantity) || 0,
+          remainingQuantity: (parseInt(item.rentedQuantity) || 0) - (parseInt(item.returnedQuantity) || 0),
+          dailyRate: parseFloat(item.dailyRate) || 0,
+          totalDays: parseInt(item.totalDays) || 0,
+          amount: parseFloat(item.amount) || 0,
+        })),
+        status: invoice.rentalDetails?.status || 'UNKNOWN',
+        totalAmount: invoice.totalAmount || 0,
+      });
+    });
+    
+    // Count unique clients
+    analytics.overview.totalClients = analytics.clientAnalytics.size;
+    
+    // Convert Maps to Arrays for JSON response
+    const responseData = {
+      overview: analytics.overview,
+      productAnalytics: Array.from(analytics.productAnalytics.values()),
+      clientAnalytics: Array.from(analytics.clientAnalytics.values()),
+      detailedHistory: analytics.detailedHistory,
+      monthlyTrends: Array.from(analytics.monthlyTrends.values()).sort((a, b) => a.month.localeCompare(b.month)),
+    };
+    
+    console.log('✅ Analytics data processed successfully');
+    
+    res.json({
+      success: true,
+      data: responseData,
+      message: 'Rental analytics fetched successfully'
+    });
+    
+  } catch (error) {
+    console.error('❌ Error fetching rental analytics:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching rental analytics',
+      error: error.message
     });
   }
 };

@@ -19,7 +19,7 @@ export default function RentalForm({
   updateInvoiceData,
   calculateAmounts,
   companyDetails,
-  isPhysicalCopy,
+  // isPhysicalCopy,
   invoiceType = 'ADVANCE',
 }: RentalFormProps) {
 
@@ -49,13 +49,11 @@ export default function RentalForm({
   }
 
   const updateItem = (index: number, field: string, value: any) => {
-    console.log('🔄 updateItem called:', { index, field, value })
     
     const newItems = [...invoiceData.items]
     // Preserve all existing fields and only update the specific field
     newItems[index] = { ...newItems[index], [field]: value }
     
-    console.log('📝 Item before calculation:', newItems[index])
     
     // Auto-calculate rent amount when quantity, rate, days, or partial return changes
     if (field === 'rentedQuantity' || field === 'dailyRate' || field === 'totalDays' || field === 'returnedQuantity' || field === 'partialReturnDate') {
@@ -104,17 +102,6 @@ export default function RentalForm({
         
         calculatedRent = returnedItemsRent + remainingItemsRent
         
-        console.log('🧮 PARTIAL calculation:', {
-          rentedQty,
-          returnedQty,
-          remainingQty,
-          rate,
-          returnedDays,
-          totalDays,
-          returnedItemsRent,
-          remainingItemsRent,
-          calculatedRent
-        })
         
       } else {
         // NORMAL CALCULATION: Standard rent calculation
@@ -141,7 +128,6 @@ export default function RentalForm({
       }
     }
     
-    console.log('✅ Item after calculation:', newItems[index])
     
     updateInvoiceData("items", newItems)
     setTimeout(calculateAmounts, 0)
@@ -402,7 +388,7 @@ export default function RentalForm({
                   borderRadius: "4px",
                   border: "1px solid #bbf7d0"
                 }}>
-                  💡 Leave empty to use Bill To address
+                   Leave empty to use Bill To address
                 </div>
               </div>
             ) : (
@@ -424,7 +410,7 @@ export default function RentalForm({
                     fontStyle: "italic",
                     marginTop: "6px"
                   }}>
-                    📦 Using Bill To address for shipping
+                     Using Bill To address for shipping
                   </div>
                 )}
               </div>
@@ -637,7 +623,6 @@ export default function RentalForm({
                           value={item.partialReturnDate || ""}
                           onChange={(e) => {
                             const newValue = e.target.value
-                            console.log('📅 Partial return date onChange:', { newValue, startDate: item.startDate })
                             
                             // Calculate days if both dates are set
                             let calculatedDays = item.totalDays
@@ -646,7 +631,6 @@ export default function RentalForm({
                               const end = new Date(newValue)
                               const diffTime = Math.abs(end.getTime() - start.getTime())
                               calculatedDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1
-                              console.log('📅 Calculated days for partial return:', calculatedDays)
                             }
                             
                             // Update both fields in single operation to prevent UI delay
@@ -679,7 +663,6 @@ export default function RentalForm({
                           value={item.endDate || ""}
                           onChange={(e) => {
                             const newValue = e.target.value
-                            console.log('📅 End date onChange:', { newValue, startDate: item.startDate })
                             
                             // Calculate days if both dates are set
                             let calculatedDays = item.totalDays
@@ -688,7 +671,6 @@ export default function RentalForm({
                               const end = new Date(newValue)
                               const diffTime = Math.abs(end.getTime() - start.getTime())
                               calculatedDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1
-                              console.log('📅 Calculated days:', calculatedDays)
                             }
                             
                             // Update both endDate and totalDays in one go
@@ -714,7 +696,6 @@ export default function RentalForm({
                             newItems[index].rentAmount = calculatedRent
                             newItems[index].amount = calculatedRent
                             
-                            console.log('✅ Final item update:', newItems[index])
                             
                             updateInvoiceData("items", newItems)
                             setTimeout(() => calculateAmounts(), 0)
@@ -750,13 +731,11 @@ export default function RentalForm({
                               ? parseInt(item.rentedQuantity) || 0 
                               : item.rentedQuantity || 0
                             
-                            console.log('🔢 Return Quantity onChange:', { returnedQty, rentedQty })
                             
                             // Validate that returned quantity doesn't exceed rented quantity
                             if (returnedQty <= rentedQty) {
                               updateItem(index, "returnedQuantity", returnedQty)
                             } else {
-                              console.log('❌ Returned quantity exceeds rented quantity')
                               alert(`Cannot return more than ${rentedQty} items`)
                             }
                           }}
@@ -863,7 +842,7 @@ export default function RentalForm({
           border: "1px solid #f59e0b",
           marginTop: "16px"
         }}>
-          <h3 style={{ fontWeight: "bold", marginBottom: "12px", color: "#92400e", fontSize: "16px" }}>💰 Advance Payment Details</h3>
+          <h3 style={{ fontWeight: "bold", marginBottom: "12px", color: "#92400e", fontSize: "16px" }}> Advance Payment Details</h3>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", fontSize: "14px" }}>
             <div>
               {isEditingMode ? (
@@ -908,7 +887,7 @@ export default function RentalForm({
                 </span>
               </div>
               <div style={{ fontSize: "12px", color: "#6b7280", fontStyle: "italic", backgroundColor: "#fffbeb", padding: "8px", borderRadius: "4px", border: "1px solid #fbbf24" }}>
-                💡 This balance will be collected upon delivery/completion of rental service
+                 This balance will be collected upon delivery/completion of rental service
               </div>
             </div>
           </div>
@@ -925,7 +904,7 @@ export default function RentalForm({
           border: "1px solid #10b981",
           marginTop: "16px"
         }}>
-          <h3 style={{ fontWeight: "bold", marginBottom: "12px", color: "#065f46", fontSize: "16px" }}>🔄 Partial Return Payment Details</h3>
+          <h3 style={{ fontWeight: "bold", marginBottom: "12px", color: "#065f46", fontSize: "16px" }}> Partial Return Payment Details</h3>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", fontSize: "14px" }}>
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
@@ -979,7 +958,7 @@ export default function RentalForm({
                 </span>
               </div>
               <div style={{ fontSize: "12px", color: "#6b7280", fontStyle: "italic", backgroundColor: "#f0fdf4", padding: "8px", borderRadius: "4px", border: "1px solid #34d399" }}>
-                💡 Outstanding amount updated based on partial returns and payments
+                 Outstanding amount updated based on partial returns and payments
               </div>
             </div>
           </div>
@@ -1049,9 +1028,7 @@ export default function RentalForm({
           <div style={{ borderBottom: "1px solid #6b7280", width: 192, marginBottom: 8 }}></div>
           <p style={{ fontSize: 14, margin: 0 }}>Authorized Signatory</p>
           <p style={{ fontSize: 14, margin: 0 }}>For {companyDetails.name}</p>
-          {!isPhysicalCopy && (
-            <img src={companyDetails.stamp || "/placeholder.svg"} alt="stamp" style={{ position: "absolute", top: -16, left: 96, width: 64, height: 64, opacity: 0.7 }} />
-          )}
+          {/* Stamp removed to avoid overlay issues */}
         </div>
         <div style={{ textAlign: "center" }}>
           <div style={{ borderBottom: "1px solid #6b7280", width: 128, marginBottom: 8 }}></div>
@@ -1062,9 +1039,9 @@ export default function RentalForm({
       {/* Thank-you note */}
       <div style={{ textAlign: "center", marginTop: 24, paddingTop: 16, borderTop: "1px solid #e5e7eb", color: "#2563eb" }}>
         <p style={{ fontSize: 14, margin: 0 }}>
-          Thank you for your business! •
+          Thank you for your business! 
           <Phone style={{ width: 12, height: 12, display: "inline", margin: "0 4px" }} />
-          {companyDetails.phone} •
+          {companyDetails.phone} 
           <Mail style={{ width: 12, height: 12, display: "inline", margin: "0 4px" }} />
           {companyDetails.email}
         </p>
@@ -1072,3 +1049,4 @@ export default function RentalForm({
     </div>
   )
 }
+

@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState, useEffect } from "react"
 import { useNavigate, useParams } from "react-router-dom"
@@ -38,11 +38,10 @@ export default function RentalDetails() {
     if (!invoiceId) return
     
     try {
-      console.log('🔄 Fetching invoice details:', invoiceId)
-      const token = localStorage.getItem("token")
+      const token = localStorage.getItem("refreshToken")
       
       const response = await axios.get(
-        `http://localhost:5000/api/invoice/rental/details/${invoiceId}`,
+        `https://newsusainvoice.onrender.com/api/invoice/rental/details/${invoiceId}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -50,15 +49,13 @@ export default function RentalDetails() {
       
       if (response.data.success) {
         const invoiceDetails = response.data.data
-        console.log('✅ Invoice details loaded:', invoiceDetails)
         setInvoiceData(invoiceDetails)
       } else {
         throw new Error("Invoice not found")
       }
     } catch (error: any) {
-      console.error("❌ Error fetching invoice details:", error)
       alert("Error loading invoice details")
-      navigate("/dashboard")
+      navigate("/admin/dashboard")
     }
   }
 
@@ -72,9 +69,8 @@ export default function RentalDetails() {
     initializeData()
   }, [invoiceId])
 
-  const updateInvoiceData = (path: string, value: any) => {
+  const updateInvoiceData = (_path: string, _value: any) => {
     // This is read-only mode, so no updates needed
-    console.log('Read-only mode - no updates allowed')
   }
 
   const calculateAmounts = () => {
@@ -186,10 +182,9 @@ export default function RentalDetails() {
           duplicatePdf.save(`${baseFilename}-duplicate.pdf`)
         }, 500)
         
-        alert(`${type} invoice PDFs generated successfully!\n\n✅ Original PDF: ${baseFilename}-original.pdf\n✅ Duplicate PDF: ${baseFilename}-duplicate.pdf`)
+        alert(`${type} invoice PDFs generated successfully!\n\nâœ… Original PDF: ${baseFilename}-original.pdf\nâœ… Duplicate PDF: ${baseFilename}-duplicate.pdf`)
       }
     } catch (error) {
-      console.error('Error generating PDF:', error)
       alert('Error generating PDF. Please try again.')
     } finally {
       setIsGeneratingPDF(false)
@@ -229,7 +224,7 @@ export default function RentalDetails() {
           Invoice not found
         </div>
         <button
-          onClick={() => navigate("/dashboard")}
+          onClick={() => navigate("/admin/dashboard")}
           style={{
             backgroundColor: "#2563eb",
             color: "white",
@@ -262,7 +257,7 @@ export default function RentalDetails() {
         }}
       >
         <button
-          onClick={() => navigate("/dashboard")}
+          onClick={() => navigate("/admin/dashboard")}
           style={{
             display: "flex",
             alignItems: "center",
@@ -318,20 +313,115 @@ export default function RentalDetails() {
         <RentalHeader
           companyDetails={companyDetails}
           invoiceData={invoiceData}
-          isEditingMode={false}
+          isEditingMode={isEditingMode}
           updateInvoiceData={updateInvoiceData}
           invoiceType={getInvoiceTypeFromData(invoiceData)}
         />
 
         <RentalForm
           invoiceData={invoiceData}
-          isEditingMode={false}
+          isEditingMode={isEditingMode}
           updateInvoiceData={updateInvoiceData}
           calculateAmounts={calculateAmounts}
           companyDetails={companyDetails}
           isPhysicalCopy={isPhysicalCopy}
           invoiceType={getInvoiceTypeFromData(invoiceData)}
         />
+
+        {/* Partial Return History (Read-only) */}
+        {(invoiceData.partialReturnHistory && invoiceData.partialReturnHistory.length > 0) && (
+          <div style={{
+            backgroundColor: '#ecfeff',
+            padding: '20px',
+            borderRadius: '8px',
+            marginTop: '16px',
+            border: '2px solid #06b6d4'
+          }}>
+            <h3 style={{ fontWeight: 'bold', marginBottom: '12px', color: '#164e63', fontSize: '18px' }}>Partial Return History</h3>
+            {invoiceData.partialReturnHistory.map((entry: any, idx: number) => (
+              <div key={idx} style={{ marginBottom: '16px' }}>
+                <div style={{ display: 'flex', gap: '16px', marginBottom: '8px', fontSize: '13px' }}>
+                  <div><strong>Date:</strong> {entry.returnDate || '-'}</div>
+                  {typeof entry.partialPayment === 'number' && (
+                    <div><strong>Partial Payment:</strong> ₹{(entry.partialPayment || 0).toLocaleString()}</div>
+                  )}
+                </div>
+                {entry.notes && (
+                  <div style={{ fontSize: '12px', color: '#334155', marginBottom: '8px' }}><strong>Notes:</strong> {entry.notes}</div>
+                )}
+                {(entry.returnedItems && entry.returnedItems.length > 0) ? (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#cffafe' }}>
+                          <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #67e8f9' }}>Product</th>
+                          <th style={{ textAlign: 'right', padding: '8px', borderBottom: '1px solid #67e8f9' }}>Returned Qty</th>
+                          <th style={{ textAlign: 'right', padding: '8px', borderBottom: '1px solid #67e8f9' }}>Partial Amount (₹)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {entry.returnedItems.map((ri: any, rIdx: number) => (
+                          <tr key={rIdx}>
+                            <td style={{ padding: '8px', borderBottom: '1px solid #bae6fd' }}>{ri.productName || `Item ${rIdx + 1}`}</td>
+                            <td style={{ padding: '8px', borderBottom: '1px solid #bae6fd', textAlign: 'right' }}>{ri.returnedQuantity || 0}</td>
+                            <td style={{ padding: '8px', borderBottom: '1px solid #bae6fd', textAlign: 'right' }}>₹{(ri.partialAmount || 0).toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '12px', color: '#64748b' }}>No returned items recorded in this entry.</div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Full Settlement Payment Summary (Read-only) */}
+        {getInvoiceTypeFromData(invoiceData) === 'FULL' && (
+          <div style={{ 
+            backgroundColor: '#f0f9ff', 
+            padding: '20px', 
+            borderRadius: '8px', 
+            marginTop: '16px',
+            border: '2px solid #0ea5e9'
+          }}>
+            <h3 style={{ fontWeight: 'bold', marginBottom: '12px', color: '#0c4a6e', fontSize: '18px' }}>Full Settlement Summary</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', fontSize: '14px' }}>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ fontWeight: 600 }}>Total Rent Amount:</span>
+                  <span style={{ fontWeight: 'bold' }}>₹{(invoiceData.paymentDetails?.totalRentAmount || 0).toLocaleString()}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ fontWeight: 600 }}>Paid Amount:</span>
+                  <span style={{ fontWeight: 'bold' }}>₹{(invoiceData.paymentDetails?.paidAmount || 0).toLocaleString()}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ fontWeight: 600 }}>Damage Charges:</span>
+                  <span style={{ fontWeight: 'bold', color: '#b45309' }}>₹{(invoiceData.paymentDetails?.damageCharges || 0).toLocaleString()}</span>
+                </div>
+              </div>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ fontWeight: 600 }}>Final Amount:</span>
+                  <span style={{ fontWeight: 'bold' }}>₹{(invoiceData.paymentDetails?.finalAmount || 0).toLocaleString()}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ fontWeight: 600 }}>Outstanding:</span>
+                  <span style={{ fontWeight: 'bold', color: (invoiceData.paymentDetails?.outstandingAmount || 0) === 0 ? '#059669' : '#dc2626' }}>₹{(invoiceData.paymentDetails?.outstandingAmount || 0).toLocaleString()}</span>
+                </div>
+                {invoiceData.rentalDetails?.status && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <span style={{ fontWeight: 600 }}>Status:</span>
+                    <span style={{ fontWeight: 'bold' }}>{invoiceData.rentalDetails.status}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <RentalActions
@@ -346,3 +436,4 @@ export default function RentalDetails() {
     </div>
   )
 }
+

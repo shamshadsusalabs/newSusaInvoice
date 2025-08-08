@@ -1,13 +1,13 @@
-// Company Details (matching new-invoice structure exactly)
+﻿// Company Details (matching new-invoice structure exactly)
 export interface CompanyDetails {
   name: string
   address: string
   gstin: string
-  pan: string
+  pan?: string
   phone: string
   email: string
   logo: string
-  stamp: string
+  stamp?: string
 }
 
 // Rental Invoice Data (matching new-invoice InvoiceData structure)
@@ -44,6 +44,10 @@ export interface RentalInvoiceData {
     startDate?: string
     endDate?: string
     partialReturnDate?: string
+    // Damage fields (for full settlement)
+    damagedQuantity?: string | number
+    damageFinePerUnit?: string | number
+    damageAmount?: string | number
   }[]
   subtotal: number
   cgstRate: number
@@ -78,6 +82,7 @@ export interface RentalInvoiceData {
     outstandingAmount: number
     refundAmount: number
     finalAmount: number
+    damageCharges?: number
   }
   invoiceType?: 'ADVANCE' | 'PARTIAL' | 'FULL'
   parentInvoiceId?: string
@@ -86,6 +91,18 @@ export interface RentalInvoiceData {
     invoiceType: 'ADVANCE' | 'PARTIAL' | 'FULL'
     amount: number
     date: string
+  }[]
+  // History of partial returns captured on the parent invoice
+  partialReturnHistory?: {
+    returnDate?: string
+    returnedItems?: {
+      productName?: string
+      returnedQuantity?: number
+      partialAmount?: number
+    }[]
+    partialPayment?: number
+    notes?: string
+    createdAt?: string
   }[]
 }
 
@@ -134,3 +151,4 @@ export interface FullSettlementFormData {
   finalPayment: number
   notes?: string
 }
+

@@ -11,6 +11,7 @@ import companyRoutes from './routes/company.js';
 import invoiceRoutes from './routes/invoice.js';
 import userRoutes from './routes/user.js';
 import filesRoutes from './routes/files.js';
+import dashboardRoutes from './routes/dashboard.js';
 
 const app = express();
 
@@ -50,6 +51,7 @@ app.use('/api/companies', companyRoutes);
 app.use('/api/invoice', invoiceRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/files', filesRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // ✅ Start Server
 const PORT = process.env.PORT || 5000;

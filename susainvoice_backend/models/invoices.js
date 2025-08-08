@@ -48,7 +48,11 @@ const InvoiceSchema = new mongoose.Schema({
     rentAmount: { type: Number, required: false },
     startDate: { type: String, required: false },
     endDate: { type: String, required: false },
-    partialReturnDate: { type: String, required: false } // Date when items were returned
+    partialReturnDate: { type: String, required: false }, // Date when items were returned
+    // Damage/Fine fields for full settlement
+    damagedQuantity: { type: Number, required: false, default: 0 },
+    damageFinePerUnit: { type: Number, required: false, default: 0 },
+    damageAmount: { type: Number, required: false, default: 0 }
   }],
 
   // Financial Details
@@ -95,7 +99,9 @@ const InvoiceSchema = new mongoose.Schema({
     paidAmount: { type: Number, required: false, default: 0 },
     outstandingAmount: { type: Number, required: false, default: 0 },
     refundAmount: { type: Number, required: false, default: 0 },
-    finalAmount: { type: Number, required: false, default: 0 }
+    finalAmount: { type: Number, required: false, default: 0 },
+    // Aggregate damage charges applied at settlement
+    damageCharges: { type: Number, required: false, default: 0 }
   },
 
   // Partial Return History (for tracking multiple partial returns)

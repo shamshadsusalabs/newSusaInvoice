@@ -26,6 +26,8 @@ interface DashboardStats {
   activeRentals: number;
   completedRentals: number;
   totalRevenue: number;
+  totalCompanies: number;
+  totalOutstanding: number;
   recentInvoices: RentalInvoice[];
 }
 
@@ -41,6 +43,8 @@ const Dashboard = () => {
     activeRentals: 0,
     completedRentals: 0,
     totalRevenue: 0,
+    totalCompanies: 0,
+    totalOutstanding: 0,
     recentInvoices: [],
   });
 
@@ -48,36 +52,30 @@ const Dashboard = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const companyId = localStorage.getItem('companyId') || '6892e96b511b625e5c704819'; // Default company ID
-      
-      const response = await axios.get(`http://localhost:5000/api/invoice/rental/company/${companyId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
+      const companyId = localStorage.getItem('companyId');
+      const baseUrl = 'https://newsusainvoice.onrender.com';
+
+      const url = companyId
+        ? `${baseUrl}/api/dashboard/summary?companyId=${companyId}`
+        : `${baseUrl}/api/dashboard/summary`;
+
+      const response = await axios.get(url, {
+        headers: { Authorization: `Bearer ${token}` }
       });
 
-      if (response.data.success) {
-        const invoices: RentalInvoice[] = response.data.data || [];
-        
-        // Calculate statistics
-        const totalInvoices = invoices.length;
-        const advanceInvoices = invoices.filter(inv => inv.invoiceType === 'ADVANCE').length;
-        const partialInvoices = invoices.filter(inv => inv.invoiceType === 'PARTIAL').length;
-        const fullInvoices = invoices.filter(inv => inv.invoiceType === 'FULL').length;
-        const activeRentals = invoices.filter(inv => inv.rentalDetails?.status === 'ACTIVE').length;
-        const completedRentals = invoices.filter(inv => inv.rentalDetails?.status === 'COMPLETED').length;
-        const totalRevenue = invoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
-        const recentInvoices = invoices.slice(0, 5); // Get 5 most recent
-
+      if (response.data?.success) {
+        const data = response.data.data;
         setStats({
-          totalInvoices,
-          advanceInvoices,
-          partialInvoices,
-          fullInvoices,
-          activeRentals,
-          completedRentals,
-          totalRevenue,
-          recentInvoices,
+          totalInvoices: data.totalInvoices || 0,
+          advanceInvoices: data.advanceInvoices || 0,
+          partialInvoices: data.partialInvoices || 0,
+          fullInvoices: data.fullInvoices || 0,
+          activeRentals: data.activeRentals || 0,
+          completedRentals: data.completedRentals || 0,
+          totalRevenue: data.totalRevenue || 0,
+          totalCompanies: data.totalCompanies || 0,
+          totalOutstanding: data.totalOutstanding || 0,
+          recentInvoices: data.recentInvoices || [],
         });
         setError(null);
       } else {
@@ -187,10 +185,19 @@ const Dashboard = () => {
       <div className="max-w-6xl mx-auto">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8">
           <h1 className="text-3xl font-bold text-slate-800">Dashboard Overview</h1>
-          <button className="mt-4 sm:mt-0 flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow-sm transition-colors duration-200">
-            <FaDownload size={14} />
-            <span>Export Report</span>
-          </button>
+          <div className="flex gap-3 mt-4 sm:mt-0">
+            <button 
+              onClick={() => navigate('/admin/rental/analytics')}
+              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg shadow-sm transition-colors duration-200"
+            >
+              <FaChartLine size={14} />
+              <span>Detailed Analytics</span>
+            </button>
+            <button className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow-sm transition-colors duration-200">
+              <FaDownload size={14} />
+              <span>Export Report</span>
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -246,7 +253,7 @@ const Dashboard = () => {
                 <div 
                   key={invoice._id} 
                   className="flex items-center justify-between p-4 border border-slate-100 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors"
-                  onClick={() => navigate(`/rental-details/${invoice._id}`)}
+                  onClick={() => navigate(`/admin/rental/details/${invoice._id}`)}
                 >
                   <div className="flex items-center gap-4">
                     <div className={`p-2 rounded-full ${
@@ -280,7 +287,16 @@ const Dashboard = () => {
         {/* Additional Stats Section */}
         <div className="mt-8 bg-white p-6 rounded-xl shadow-sm">
           <h2 className="text-xl font-semibold text-slate-800 mb-6">Quick Insights</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
+            <div className="p-4 border border-slate-100 rounded-lg">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2 bg-sky-50 rounded-full">
+                  <FaFileInvoice className="text-sky-500" />
+                </div>
+                <span className="text-sm font-medium text-slate-600">Total Companies</span>
+              </div>
+              <p className="text-2xl font-bold text-slate-800">{stats.totalCompanies}</p>
+            </div>
             <div className="p-4 border border-slate-100 rounded-lg">
               <div className="flex items-center gap-3 mb-3">
                 <div className="p-2 bg-indigo-50 rounded-full">
@@ -307,6 +323,15 @@ const Dashboard = () => {
                 <span className="text-sm font-medium text-slate-600">Completed Rentals</span>
               </div>
               <p className="text-2xl font-bold text-slate-800">{stats.completedRentals}</p>
+            </div>
+            <div className="p-4 border border-slate-100 rounded-lg">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2 bg-amber-50 rounded-full">
+                  <FaReceipt className="text-amber-500" />
+                </div>
+                <span className="text-sm font-medium text-slate-600">Total Outstanding</span>
+              </div>
+              <p className="text-2xl font-bold text-slate-800">{formatCurrency(stats.totalOutstanding)}</p>
             </div>
           </div>
         </div>

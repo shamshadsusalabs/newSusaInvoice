@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 import { useState, useEffect } from "react"
 import axios from "axios"
 import { useParams, useNavigate } from "react-router-dom"
@@ -65,7 +65,7 @@ export default function AllRentalInvoices({ onNewInvoice, onViewInvoice }: AllRe
 
       try {
         setLoading(true)
-        const response = await axios.get<ApiResponse>(`http://localhost:5000/api/invoice/rental/company/${companyId}`, {
+        const response = await axios.get<ApiResponse>(`https://newsusainvoice.onrender.com/api/invoice/rental/company/${companyId}`, {
           headers: {
             Authorization: `Bearer ${localStorage.getItem('token')}`
           }
@@ -80,7 +80,6 @@ export default function AllRentalInvoices({ onNewInvoice, onViewInvoice }: AllRe
           setError("Failed to fetch rental invoices")
         }
       } catch (err) {
-        console.error("Error fetching rental invoices:", err)
         if (axios.isAxiosError(err)) {
           if (err.response) {
             if (err.response.status === 404 || err.response.data?.message?.includes("No rental invoices found")) {
@@ -449,3 +448,4 @@ export default function AllRentalInvoices({ onNewInvoice, onViewInvoice }: AllRe
     </div>
   )
 }
+

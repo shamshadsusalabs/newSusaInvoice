@@ -7,26 +7,24 @@ import RentalForm from "./rental-form"
 import RentalActions from "./rental-actions"
 import type { RentalInvoiceData, CompanyDetails } from "./rental-types"
 import logo from "../../assets/logo1.jpeg"
-import stamp from "../../assets/stamp.png"
+// import stamp from "../../assets/stamp.png"
 
 export default function AdvanceInvoice() {
   const { companyId } = useParams<{ companyId: string }>()
   const [isEditingMode, setIsEditingMode] = useState(true)
-   const [isProgressInvoice, setIsProgressInvoice] = useState(false)
-  const [isPhysicalCopy, setIsPhysicalCopy] = useState(false)
-  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
-  const [currentPDFType, setCurrentPDFType] = useState<'TAX' | 'PROFORMA' | null>(null)
+  // const [currentPDFType, setCurrentPDFType] = useState<'TAX' | 'PROFORMA' | null>(null)
 
   const [companyDetails] = useState<CompanyDetails>({
-    name: "SUSAKGJYO BUSINESS PVT. LTD",
-    address: "1404, DLF CORPORATE GREEN, SECTOR 74 - A, GURGAON, HARYANA -122004 (INDIA)",
-    gstin: "06AAYCS5019E1Z3",
-    pan: "AAYCS5019E",
-    phone: "+91-8595591496, 0124-4147286 ",
-    email: "Contact@susalabs.com",
+    name: "MAHIPAL SINGH TIMBER",
+    address: "PLOT NO-25, GALI NO-E8, NEAR JAGAR CHOWK, RAM COLONY,, Faridabad, Faridabad, Haryana, 121004",
+    gstin: ": 06BROPG0987J3ZA",
+    // pan: "AAYCS5019E",
+    phone: "+91 87000 77386",
+    email: "Garvsingh1619@gmail.com",
     logo: logo,
-    stamp: stamp,
+    // stamp: stamp,
   })
 
   const [invoiceData, setInvoiceData] = useState<RentalInvoiceData>({
@@ -99,7 +97,7 @@ export default function AdvanceInvoice() {
   // Fetch next invoice number
   const fetchNextInvoiceNumber = async () => {
     try {
-      const response = await axios.get("http://localhost:5000/api/invoice/nextInvoiceNumber")
+      const response = await axios.get("https://newsusainvoice.onrender.com/api/invoice/nextInvoiceNumber")
       if (response.data && response.data.nextInvoiceNumber) {
         setInvoiceData((prev) => ({
           ...prev,
@@ -107,7 +105,6 @@ export default function AdvanceInvoice() {
         }))
       }
     } catch (error) {
-      console.error("Error fetching next invoice number:", error)
     }
   }
 
@@ -116,7 +113,7 @@ export default function AdvanceInvoice() {
     if (!companyId) return
 
     try {
-      const response = await axios.get(`http://localhost:5000/api/companies/getById/${companyId}`)
+      const response = await axios.get(`https://newsusainvoice.onrender.com/api/companies/getById/${companyId}`)
       if (response.data) {
         const company = response.data
         setInvoiceData((prev) => ({
@@ -129,7 +126,6 @@ export default function AdvanceInvoice() {
         }))
       }
     } catch (error) {
-      console.error("Error fetching company details:", error)
     }
   }
 
@@ -145,7 +141,6 @@ export default function AdvanceInvoice() {
 
   const updateInvoiceData = (path: string, value: any) => {
     // Debug console logs
-    console.log('🔧 updateInvoiceData called:', { path, value })
     
     setInvoiceData(prev => {
       const keys = path.split('.')
@@ -163,11 +158,7 @@ export default function AdvanceInvoice() {
       
       // Debug: Log the updated data
       if (path.includes('endDate')) {
-        console.log('📅 End date updated:', {
-          path,
-          value,
-          updatedItems: newData.items
-        })
+        // debug removed
       }
       
       return newData
@@ -218,12 +209,9 @@ export default function AdvanceInvoice() {
     calculateAmounts()
   }, [])
 
-  const handleSaveAndGeneratePDF = async (type: 'TAX' | 'PROFORMA') => {
-    setIsGeneratingPDF(true)
-    setCurrentPDFType(type) // Set type for header display
+  const handleSave = async () => {
+    setIsSaving(true)
     try {
-      const token = localStorage.getItem('token')
-      
       // Add companyId and type to the request payload
       const { paymentTerms, rentalDetails, ...invoiceDataWithoutUnused } = invoiceData
       
@@ -245,21 +233,15 @@ export default function AdvanceInvoice() {
         ...invoiceDataWithoutUnused,
         items: cleanedItems,
         companyId: companyId,
-        invoiceType: 'ADVANCE', // Keep as ADVANCE for rental invoices
-        type: type // TAX or PROFORMA goes in separate type field
+        invoiceType: 'ADVANCE' // Keep as ADVANCE for rental invoices
       }
       
       // Console log the complete payload
-      console.log('🚀 PAYLOAD BEING SENT TO BACKEND:')
-      console.log('📦 Request Data:', JSON.stringify(requestData, null, 2))
-      console.log('🏢 Company ID:', companyId)
-      console.log('📄 Invoice Type:', type)
-      console.log('💰 Total Amount:', requestData.totalAmount)
-      console.log('🧾 Items Count:', requestData.items?.length)
+      // Removed PDF type usage; save-only flow
       
       // Save to backend first
       const response = await axios.post(
-        'http://localhost:5000/api/invoice/rental/advance',
+        'https://newsusainvoice.onrender.com/api/invoice/rental/advance',
         requestData,
         {
           headers: {
@@ -269,102 +251,13 @@ export default function AdvanceInvoice() {
       )
       
       if (response.data.success) {
-        // Generate PDF after successful save
-        const { jsPDF } = await import('jspdf')
-        const html2canvas = await import('html2canvas')
-        
-        const element = document.getElementById('invoice-container')
-        if (element) {
-          // Wait a bit for all content to render
-          await new Promise(resolve => setTimeout(resolve, 500))
-          
-          const canvas = await html2canvas.default(element, {
-            scale: 2, // Higher resolution
-            useCORS: true, // Handle cross-origin images
-            allowTaint: true, // Allow tainted canvas
-            backgroundColor: '#ffffff', // White background
-            width: element.scrollWidth,
-            height: element.scrollHeight,
-            scrollX: 0,
-            scrollY: 0,
-            windowWidth: element.scrollWidth,
-            windowHeight: element.scrollHeight
-          })
-          const imgData = canvas.toDataURL('image/png', 1.0) // Full quality
-          
-          // Create Original PDF
-          const originalPdf = new jsPDF()
-          const imgWidth = 210
-          const pageHeight = 295
-          const imgHeight = (canvas.height * imgWidth) / canvas.width
-          let heightLeft = imgHeight
-          
-          let position = 0
-          
-          // Add "ORIGINAL" watermark
-          originalPdf.setFontSize(20)
-          originalPdf.setTextColor(200, 200, 200)
-          originalPdf.text('ORIGINAL', 150, 20)
-          
-          originalPdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
-          heightLeft -= pageHeight
-          
-          while (heightLeft >= 0) {
-            position = heightLeft - imgHeight
-            originalPdf.addPage()
-            // Add watermark to each page
-            originalPdf.setFontSize(20)
-            originalPdf.setTextColor(200, 200, 200)
-            originalPdf.text('ORIGINAL', 150, 20)
-            originalPdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
-            heightLeft -= pageHeight
-          }
-          
-          // Create Duplicate PDF
-          const duplicatePdf = new jsPDF()
-          heightLeft = imgHeight
-          position = 0
-          
-          // Add "DUPLICATE" watermark
-          duplicatePdf.setFontSize(20)
-          duplicatePdf.setTextColor(200, 200, 200)
-          duplicatePdf.text('DUPLICATE', 145, 20)
-          
-          duplicatePdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
-          heightLeft -= pageHeight
-          
-          while (heightLeft >= 0) {
-            position = heightLeft - imgHeight
-            duplicatePdf.addPage()
-            // Add watermark to each page
-            duplicatePdf.setFontSize(20)
-            duplicatePdf.setTextColor(200, 200, 200)
-            duplicatePdf.text('DUPLICATE', 145, 20)
-            duplicatePdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
-            heightLeft -= pageHeight
-          }
-          
-          // Save both PDFs
-          const baseFilename = type === 'TAX' 
-            ? `tax-invoice-${invoiceData.invoiceNumber}`
-            : `proforma-invoice-${invoiceData.invoiceNumber}`
-          
-          originalPdf.save(`${baseFilename}-original.pdf`)
-          
-          // Small delay before saving duplicate
-          setTimeout(() => {
-            duplicatePdf.save(`${baseFilename}-duplicate.pdf`)
-          }, 500)
-          
-          alert(`${type} invoice saved successfully!\n\n✅ Original PDF: ${baseFilename}-original.pdf\n✅ Duplicate PDF: ${baseFilename}-duplicate.pdf`)
-          setIsEditingMode(false)
-        }
+        alert(`Invoice saved successfully!`)
+        setIsEditingMode(false)
       }
     } catch (error) {
-      console.error('Error saving invoice or generating PDF:', error)
-      alert('Error saving invoice or generating PDF. Please try again.')
+      alert('Error saving invoice. Please try again.')
     } finally {
-      setIsGeneratingPDF(false)
+      setIsSaving(false)
     }
   }
 
@@ -407,9 +300,7 @@ export default function AdvanceInvoice() {
         <div
           style={{ color: "#2563eb", fontWeight: "bold", fontSize: "18px", marginBottom: "16px", marginLeft: "200px" }}
         >
-          {currentPDFType === 'TAX' ? "TAX INVOICE" : 
-           currentPDFType === 'PROFORMA' ? "PROFORMA INVOICE" : 
-           "ADVANCE RENTAL INVOICE"}
+          ADVANCE RENTAL INVOICE
         </div>
 
         <RentalHeader
@@ -426,7 +317,7 @@ export default function AdvanceInvoice() {
           updateInvoiceData={updateInvoiceData}
           calculateAmounts={calculateAmounts}
           companyDetails={companyDetails}
-          isPhysicalCopy={isPhysicalCopy}
+          isPhysicalCopy={false}
           invoiceType="ADVANCE"
         />
       </div>
@@ -434,12 +325,11 @@ export default function AdvanceInvoice() {
       <RentalActions
         isEditingMode={isEditingMode}
         setIsEditingMode={setIsEditingMode}
-        handleTaxPDF={() => handleSaveAndGeneratePDF('TAX')}
-        handleProformaPDF={() => handleSaveAndGeneratePDF('PROFORMA')}
-        isPhysicalCopy={isPhysicalCopy}
-        setIsPhysicalCopy={setIsPhysicalCopy}
-        isGeneratingPDF={isGeneratingPDF}
+        handleSave={handleSave}
+        isSaving={isSaving}
+        showPhysicalToggle={false}
       />
     </div>
   )
 }
+

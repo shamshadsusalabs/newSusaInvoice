@@ -7,26 +7,24 @@ import RentalForm from "./rental-form"
 import RentalActions from "./rental-actions"
 import type { RentalInvoiceData, CompanyDetails } from "./rental-types"
 import logo from "../../assets/logo1.jpeg"
-import stamp from "../../assets/stamp.png"
+// import stamp from "../../assets/stamp.png"
 
 export default function PartialReturn() {
   const { invoiceId: parentInvoiceId } = useParams<{ invoiceId: string }>()
   const [isEditingMode, setIsEditingMode] = useState(true)
-   const [isProgressInvoice, setIsProgressInvoice] = useState(false)
-  const [isPhysicalCopy, setIsPhysicalCopy] = useState(false)
-  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
-  const [currentPDFType, setCurrentPDFType] = useState<'TAX' | 'PROFORMA' | null>(null)
+  // const [currentPDFType, setCurrentPDFType] = useState<'TAX' | 'PROFORMA' | null>(null)
 
   const [companyDetails] = useState<CompanyDetails>({
-    name: "SUSAKGJYO BUSINESS PVT. LTD",
-    address: "1404, DLF CORPORATE GREEN, SECTOR 74 - A, GURGAON, HARYANA -122004 (INDIA)",
-    gstin: "06AAYCS5019E1Z3",
-    pan: "AAYCS5019E",
-    phone: "+91-8595591496, 0124-4147286 ",
-    email: "Contact@susalabs.com",
+    name: "MAHIPAL SINGH TIMBER",
+    address: "PLOT NO-25, GALI NO-E8, NEAR JAGAR CHOWK, RAM COLONY,, Faridabad, Faridabad, Haryana, 121004",
+    gstin: ": 06BROPG0987J3ZA",
+    // pan: "AAYCS5019E",
+    phone: "+91 87000 77386",
+    email: "Garvsingh1619@gmail.com",
     logo: logo,
-    stamp: stamp,
+    // stamp: stamp,
   })
 
   const [invoiceData, setInvoiceData] = useState<RentalInvoiceData>({
@@ -94,7 +92,7 @@ export default function PartialReturn() {
       refundAmount: 0,
       finalAmount: 0,
     },
-    invoiceType: 'ADVANCE',
+    invoiceType: 'PARTIAL',
   })
 
   // Fetch parent invoice data
@@ -102,19 +100,13 @@ export default function PartialReturn() {
     if (!parentInvoiceId) return
     
     try {
-      console.log('🔄 Fetching parent invoice:', parentInvoiceId)
-      const token = localStorage.getItem("token")
       
       const response = await axios.get(
-        `http://localhost:5000/api/invoice/rental/details/${parentInvoiceId}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
+        `https://newsusainvoice.onrender.com/api/invoice/rental/details/${parentInvoiceId}`
       )
       
       if (response.data.success) {
         const parent = response.data.data
-        console.log('✅ Parent invoice loaded:', parent)
         
         // Populate all fields with parent invoice data
         setInvoiceData({
@@ -151,10 +143,8 @@ export default function PartialReturn() {
           invoiceType: 'PARTIAL',
         })
         
-        console.log('✅ All fields populated with parent invoice data')
       }
     } catch (error: any) {
-      console.error("❌ Error fetching parent invoice:", error)
       alert("Error loading parent invoice details")
     }
   }
@@ -173,7 +163,6 @@ export default function PartialReturn() {
 
   const updateInvoiceData = (path: string, value: any) => {
     // Debug console logs
-    console.log('🔧 updateInvoiceData called:', { path, value })
     
     setInvoiceData(prev => {
       const keys = path.split('.')
@@ -191,11 +180,7 @@ export default function PartialReturn() {
       
       // Debug: Log the updated data
       if (path.includes('endDate')) {
-        console.log('📅 End date updated:', {
-          path,
-          value,
-          updatedItems: newData.items
-        })
+        // debug removed
       }
       
       return newData
@@ -230,18 +215,16 @@ export default function PartialReturn() {
     calculateAmounts()
   }, [])
 
-  const handleSaveAndGeneratePDF = async (type: 'TAX' | 'PROFORMA') => {
-    setIsGeneratingPDF(true)
-    setCurrentPDFType(type) // Set type for header display
+  const handleSave = async () => {
+    setIsSaving(true)
     try {
-      const token = localStorage.getItem('token')
-      
-      // Add companyId and type to the request payload
+      // Prepare payload for PARTIAL update
       const { paymentTerms, rentalDetails, ...invoiceDataWithoutUnused } = invoiceData
       
       // Filter out empty endDate fields from items
+      const today = new Date().toISOString().split('T')[0]
       const cleanedItems = invoiceDataWithoutUnused.items.map(item => {
-        const cleanedItem = { ...item }
+        const cleanedItem: any = { ...item }
         // Remove endDate if it's empty
         if (!cleanedItem.endDate || cleanedItem.endDate.trim() === '') {
           delete cleanedItem.endDate
@@ -250,6 +233,11 @@ export default function PartialReturn() {
         if (!cleanedItem.startDate || cleanedItem.startDate.trim() === '') {
           delete cleanedItem.startDate
         }
+        // Ensure partialReturnDate is set for items being returned
+        const retQty = typeof cleanedItem.returnedQuantity === 'string' ? parseFloat(cleanedItem.returnedQuantity) || 0 : cleanedItem.returnedQuantity || 0
+        if (retQty > 0 && (!cleanedItem.partialReturnDate || cleanedItem.partialReturnDate.trim() === '')) {
+          cleanedItem.partialReturnDate = today
+        }
         return cleanedItem
       })
       
@@ -257,127 +245,30 @@ export default function PartialReturn() {
         ...invoiceDataWithoutUnused,
         items: cleanedItems,
         // Don't send companyId - it should remain unchanged from original invoice
-        invoiceType: 'PARTIAL', // PARTIAL for partial return invoices
-        type: type // TAX or PROFORMA goes in separate type field
+        invoiceType: 'PARTIAL' // PARTIAL for partial return invoices
       }
       
       // Console log the complete payload
-      console.log('🚀 PAYLOAD BEING SENT TO BACKEND:')
-      console.log('📦 Request Data:', JSON.stringify(requestData, null, 2))
-      console.log('🏢 Parent Invoice ID:', parentInvoiceId)
-      console.log('📄 Invoice Type:', type)
-      console.log('💰 Total Amount:', requestData.totalAmount)
-      console.log('🧾 Items Count:', requestData.items?.length)
       
       // Update existing invoice with partial return data
       const response = await axios.put(
-        `http://localhost:5000/api/invoice/rental/update/${parentInvoiceId}`,
+        `https://newsusainvoice.onrender.com/api/invoice/rental/update/${parentInvoiceId}`,
         requestData,
         {
           headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
+            'Content-Type': 'application/json'
           }
         }
       )
       
       if (response.data.success) {
-        // Generate PDF after successful save
-        const { jsPDF } = await import('jspdf')
-        const html2canvas = await import('html2canvas')
-        
-        const element = document.getElementById('invoice-container')
-        if (element) {
-          // Wait a bit for all content to render
-          await new Promise(resolve => setTimeout(resolve, 500))
-          
-          const canvas = await html2canvas.default(element, {
-            scale: 2, // Higher resolution
-            useCORS: true, // Handle cross-origin images
-            allowTaint: true, // Allow tainted canvas
-            backgroundColor: '#ffffff', // White background
-            width: element.scrollWidth,
-            height: element.scrollHeight,
-            scrollX: 0,
-            scrollY: 0,
-            windowWidth: element.scrollWidth,
-            windowHeight: element.scrollHeight
-          })
-          const imgData = canvas.toDataURL('image/png', 1.0) // Full quality
-          
-          // Create Original PDF
-          const originalPdf = new jsPDF()
-          const imgWidth = 210
-          const pageHeight = 295
-          const imgHeight = (canvas.height * imgWidth) / canvas.width
-          let heightLeft = imgHeight
-          
-          let position = 0
-          
-          // Add "ORIGINAL" watermark
-          originalPdf.setFontSize(20)
-          originalPdf.setTextColor(200, 200, 200)
-          originalPdf.text('ORIGINAL', 150, 20)
-          
-          originalPdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
-          heightLeft -= pageHeight
-          
-          while (heightLeft >= 0) {
-            position = heightLeft - imgHeight
-            originalPdf.addPage()
-            // Add watermark to each page
-            originalPdf.setFontSize(20)
-            originalPdf.setTextColor(200, 200, 200)
-            originalPdf.text('ORIGINAL', 150, 20)
-            originalPdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
-            heightLeft -= pageHeight
-          }
-          
-          // Create Duplicate PDF
-          const duplicatePdf = new jsPDF()
-          heightLeft = imgHeight
-          position = 0
-          
-          // Add "DUPLICATE" watermark
-          duplicatePdf.setFontSize(20)
-          duplicatePdf.setTextColor(200, 200, 200)
-          duplicatePdf.text('DUPLICATE', 145, 20)
-          
-          duplicatePdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
-          heightLeft -= pageHeight
-          
-          while (heightLeft >= 0) {
-            position = heightLeft - imgHeight
-            duplicatePdf.addPage()
-            // Add watermark to each page
-            duplicatePdf.setFontSize(20)
-            duplicatePdf.setTextColor(200, 200, 200)
-            duplicatePdf.text('DUPLICATE', 145, 20)
-            duplicatePdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
-            heightLeft -= pageHeight
-          }
-          
-          // Save both PDFs
-          const baseFilename = type === 'TAX' 
-            ? `tax-invoice-${invoiceData.invoiceNumber}`
-            : `proforma-invoice-${invoiceData.invoiceNumber}`
-          
-          originalPdf.save(`${baseFilename}-original.pdf`)
-          
-          // Small delay before saving duplicate
-          setTimeout(() => {
-            duplicatePdf.save(`${baseFilename}-duplicate.pdf`)
-          }, 500)
-          
-          alert(`${type} invoice saved successfully!\n\n✅ Original PDF: ${baseFilename}-original.pdf\n✅ Duplicate PDF: ${baseFilename}-duplicate.pdf`)
-          setIsEditingMode(false)
-        }
+        alert(`Partial return saved successfully!`)
+        setIsEditingMode(false)
       }
     } catch (error) {
-      console.error('Error saving invoice or generating PDF:', error)
-      alert('Error saving invoice or generating PDF. Please try again.')
+      alert('Error saving invoice. Please try again.')
     } finally {
-      setIsGeneratingPDF(false)
+      setIsSaving(false)
     }
   }
 
@@ -420,9 +311,7 @@ export default function PartialReturn() {
         <div
           style={{ color: "#2563eb", fontWeight: "bold", fontSize: "18px", marginBottom: "16px", marginLeft: "200px" }}
         >
-          {currentPDFType === 'TAX' ? "TAX INVOICE" : 
-           currentPDFType === 'PROFORMA' ? "PROFORMA INVOICE" : 
-           "ADVANCE RENTAL INVOICE"}
+          PARTIAL RETURN INVOICE
         </div>
 
         <RentalHeader
@@ -439,7 +328,7 @@ export default function PartialReturn() {
           updateInvoiceData={updateInvoiceData}
           calculateAmounts={calculateAmounts}
           companyDetails={companyDetails}
-          isPhysicalCopy={isPhysicalCopy}
+          isPhysicalCopy={false}
           invoiceType="PARTIAL"
         />
       </div>
@@ -447,12 +336,11 @@ export default function PartialReturn() {
       <RentalActions
         isEditingMode={isEditingMode}
         setIsEditingMode={setIsEditingMode}
-        handleTaxPDF={() => handleSaveAndGeneratePDF('TAX')}
-        handleProformaPDF={() => handleSaveAndGeneratePDF('PROFORMA')}
-        isPhysicalCopy={isPhysicalCopy}
-        setIsPhysicalCopy={setIsPhysicalCopy}
-        isGeneratingPDF={isGeneratingPDF}
+        handleSave={handleSave}
+        isSaving={isSaving}
+        showPhysicalToggle={false}
       />
     </div>
   )
 }
+

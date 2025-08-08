@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { MapPin, Phone, Mail } from "lucide-react"
 import type { CompanyDetails, RentalInvoiceData } from "./rental-types"
@@ -160,3 +160,4 @@ export default function RentalHeader({
     </div>
   )
 }
+

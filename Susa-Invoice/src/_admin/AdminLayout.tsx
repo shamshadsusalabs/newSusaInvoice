@@ -10,6 +10,7 @@ import {
   LogOut,
   Menu,
   X,
+  
   // Plus,
 } from "lucide-react"
 import axios from "axios"
@@ -23,6 +24,7 @@ const AdminLayout = () => {
     { to: "/admin/dashboard", icon: LayoutDashboard, label: "Dashboard" },
     { to: "/admin/files", icon: FolderOpen, label: "Files" },
     { to: "/admin/company", icon: FileText, label: "Companies" },
+  
   ]
 
   const getPageTitle = () => {
@@ -32,7 +34,7 @@ const AdminLayout = () => {
 
 const handleLogout = async () => {
   try {
-    await axios.post("http://localhost:5000/api/user/logout");
+    await axios.post("https://newsusainvoice.onrender.com/api/user/logout");
 
     localStorage.clear();
     navigate("/");
